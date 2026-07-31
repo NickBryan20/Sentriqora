@@ -1,6 +1,7 @@
 .next
 .turbo
 apps/web/next-env.d.ts
+apps/api/src/generated/prisma
 coverage
 dist
 node_modules

@@ -28,4 +28,5 @@ Thumbs.db
 
 # Generated clients and local infrastructure data
 packages/contracts/src/generated/
+apps/api/src/generated/prisma/
 .data/

@@ -58,6 +58,11 @@ export function configureApplication(app: INestApplication): void {
         .setTitle('AegisFlow API')
         .setDescription('API REST versionada para la plataforma AegisFlow.')
         .setVersion('0.1.0')
+        .addCookieAuth(
+          'aegisflow_access',
+          { description: 'Short-lived HttpOnly access cookie', in: 'cookie', type: 'apiKey' },
+          'session-cookie',
+        )
         .build(),
     );
     SwaggerModule.setup('api/docs', app, document, {

@@ -23,8 +23,32 @@ async function seed(): Promise<void> {
       throw new Error('The vector extension is required before seeding');
     }
 
+    const permissionResult = await client.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM permissions`,
+    );
+    const permissionCount = Number(permissionResult.rows[0]?.count ?? 0);
+    if (permissionCount !== 10) {
+      throw new Error(`Expected 10 identity permissions, found ${permissionCount}`);
+    }
+
+    const rlsResult = await client.query<{ count: string }>(
+      `SELECT count(*)::text AS count
+       FROM pg_class
+       WHERE relname IN (
+         'organizations', 'memberships', 'roles', 'role_permissions', 'membership_roles',
+         'invitations', 'sessions', 'refresh_tokens', 'mfa_challenges', 'event_records',
+         'outbox_events'
+       )
+       AND relrowsecurity
+       AND relforcerowsecurity`,
+    );
+    const rlsTableCount = Number(rlsResult.rows[0]?.count ?? 0);
+    if (rlsTableCount !== 11) {
+      throw new Error(`Expected 11 tenant tables with forced RLS, found ${rlsTableCount}`);
+    }
+
     process.stdout.write(
-      `${JSON.stringify({ extensions, phase: 0, seededRecords: 0, status: 'verified' })}\n`,
+      `${JSON.stringify({ extensions, permissionCount, phase: 1, rlsTableCount, status: 'verified' })}\n`,
     );
   } finally {
     await client.end();

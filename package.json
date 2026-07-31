@@ -21,7 +21,7 @@
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
     "typecheck": "tsc -p tsconfig.json --noEmit && turbo run typecheck",
-    "verify": "pnpm check:runtime && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm prisma:validate",
+    "verify": "pnpm check:runtime && pnpm prisma:generate && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm prisma:validate",
     "prisma:format": "prisma format",
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",

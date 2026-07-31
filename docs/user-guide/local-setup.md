@@ -12,6 +12,7 @@
 ```bash
 cp .env.example .env
 pnpm install --frozen-lockfile
+pnpm prisma:generate
 docker compose up --build -d
 ```
 
@@ -20,3 +21,10 @@ y Prometheus `9090`.
 
 Las credenciales de `.env.example` son únicamente locales. Antes de cualquier despliegue use
 `docker-compose.prod.yml`, un gestor de secretos y valores aleatorios.
+
+Las tres variables `AUTH_JWT_SECRET`, `AUTH_TOKEN_PEPPER` y `AUTH_ENCRYPTION_KEY` deben ser
+independientes. `AUTH_ENCRYPTION_KEY` contiene exactamente 32 bytes codificados en base64. El
+arranque en producción rechaza los valores de desarrollo y exige cookies seguras.
+
+No existe un usuario demo fijo: registre datos sintéticos desde Swagger (`/api/docs`) o mediante
+`POST /api/v1/auth/register`. Conserve el `organizationId` devuelto porque forma parte del login.

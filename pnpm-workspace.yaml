@@ -5,11 +5,14 @@ packages:
 allowBuilds:
   '@prisma/engines': true
   '@scarf/scarf': false
+  argon2: true
+  cpu-features: false
   esbuild: true
   msgpackr-extract: false
   prisma: true
   protobufjs: true
   sharp: true
+  ssh2: false
   unrs-resolver: true
 
 minimumReleaseAgeExclude:

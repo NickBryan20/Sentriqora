@@ -1,13 +1,33 @@
 FROM node:24.18.0-bookworm-slim AS builder
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
+ENV DATABASE_URL=postgresql://build-only:build-only@127.0.0.1:5432/build-only
 WORKDIR /workspace
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends openssl \
     && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
-COPY . .
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY apps/api/package.json ./apps/api/package.json
+COPY apps/event-simulator/package.json ./apps/event-simulator/package.json
+COPY apps/web/package.json ./apps/web/package.json
+COPY apps/worker/package.json ./apps/worker/package.json
+COPY packages/config-eslint/package.json ./packages/config-eslint/package.json
+COPY packages/config-typescript/package.json ./packages/config-typescript/package.json
+COPY packages/contracts/package.json ./packages/contracts/package.json
+COPY packages/domain/package.json ./packages/domain/package.json
+COPY packages/testing/package.json ./packages/testing/package.json
+COPY packages/ui/package.json ./packages/ui/package.json
 RUN --mount=type=cache,id=aegisflow-pnpm-store,target=/pnpm/store pnpm install --frozen-lockfile
+COPY turbo.json tsconfig.json prisma.config.ts ./
+COPY prisma ./prisma
+COPY apps/api/*.json ./apps/api/
+COPY apps/api/src ./apps/api/src
+COPY packages/config-typescript/*.json ./packages/config-typescript/
+COPY packages/contracts/*.json ./packages/contracts/
+COPY packages/contracts/src ./packages/contracts/src
+COPY packages/domain/*.json ./packages/domain/
+COPY packages/domain/src ./packages/domain/src
 RUN pnpm rebuild @prisma/engines prisma
 RUN pnpm turbo run build --filter=@aegisflow/api
 

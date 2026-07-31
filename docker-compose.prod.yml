@@ -25,6 +25,10 @@ services:
 
   api:
     environment:
+      AUTH_ENCRYPTION_KEY: ${AUTH_ENCRYPTION_KEY:?AUTH_ENCRYPTION_KEY is required}
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:?AUTH_JWT_SECRET is required}
+      AUTH_TOKEN_PEPPER: ${AUTH_TOKEN_PEPPER:?AUTH_TOKEN_PEPPER is required}
+      COOKIE_SECURE: 'true'
       CORS_ALLOWED_ORIGINS: ${PUBLIC_APP_ORIGIN:?PUBLIC_APP_ORIGIN is required}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-aegisflow_db}
       NODE_ENV: production

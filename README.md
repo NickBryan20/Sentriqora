@@ -2,9 +2,9 @@
 
 AegisFlow es una plataforma web multi-organización para recolectar eventos tecnológicos,
 correlacionar señales, gestionar incidentes y asistir decisiones con evidencia. El proyecto se
-implementa por fases; actualmente contiene la **Fase 0 — Bootstrap** verificable. Identidad,
-ingesta, detección, incidentes, RAG y playbooks se incorporarán en el orden documentado en
-`Prompt_Maestro.md`.
+implementa por fases; actualmente contiene las fases verificables **Fase 0 — Bootstrap** y
+**Fase 1 — Identidad y multi-tenancy**. Ingesta, detección, incidentes, RAG y playbooks se
+incorporarán en el orden documentado en `Prompt_Maestro.md`.
 
 ## Estado de Fase 0
 
@@ -15,6 +15,14 @@ ingesta, detección, incidentes, RAG y playbooks se incorporarán en el orden do
 - Health, readiness, métricas, OpenAPI, logs redactados y correlation ID.
 - CI de calidad y migraciones con Actions fijadas por SHA.
 
+## Estado de Fase 1
+
+- Usuarios, organizaciones, membresías, invitaciones, roles y permisos RBAC+ABAC.
+- Contraseñas Argon2id, MFA TOTP cifrado y recovery codes de un solo uso.
+- Access cookie corta, refresh tokens rotativos con replay detection, CSRF y revocación global.
+- PostgreSQL RLS forzado mediante un rol de aplicación sin privilegios.
+- Pruebas Testcontainers de migración, flujo HTTP y fuga/modificación entre tenants.
+
 ## Inicio rápido
 
 Requisitos: Node.js 24 LTS, pnpm 11, Git y Docker Compose v2.
@@ -22,6 +30,7 @@ Requisitos: Node.js 24 LTS, pnpm 11, Git y Docker Compose v2.
 ```bash
 cp .env.example .env
 pnpm install --frozen-lockfile
+pnpm prisma:generate
 docker compose up --build -d
 ```
 
@@ -48,6 +57,8 @@ pnpm dev
 ```
 
 Use `DATABASE_URL_LOCAL`, `REDIS_URL_LOCAL` y `MINIO_ENDPOINT_LOCAL` para procesos en el host.
+Genere una identidad de prueba mediante `POST /api/v1/auth/register`; el repositorio no incluye
+contraseñas demo fijas.
 
 ## Calidad
 
@@ -70,9 +81,9 @@ reportar una vulnerabilidad.
 
 AegisFlow is a multi-organization web platform for collecting technology events, correlating
 signals, managing incidents, and assisting evidence-based decisions. Development follows explicit
-phases; the repository currently contains the verifiable **Phase 0 — Bootstrap**. Identity,
-ingestion, detection, incidents, RAG, and playbooks will be added in the order defined by
-`Prompt_Maestro.md`.
+phases; the repository currently contains the verifiable **Phase 0 — Bootstrap** and **Phase 1 —
+Identity and multi-tenancy**. Ingestion, detection, incidents, RAG, and playbooks will be added in
+the order defined by `Prompt_Maestro.md`.
 
 ### Phase 0 status
 
@@ -82,6 +93,14 @@ ingestion, detection, incidents, RAG, and playbooks will be added in the order d
 - Reproducible initial migration and foundational Outbox table.
 - Health, readiness, metrics, OpenAPI, redacted logs, and correlation IDs.
 - Quality and migration CI with Actions pinned to full commit SHAs.
+
+### Phase 1 status
+
+- Users, organizations, memberships, invitations, roles, and RBAC+ABAC permissions.
+- Argon2id passwords, encrypted TOTP MFA, and single-use recovery codes.
+- Short-lived access cookies, rotating refresh tokens with replay detection, CSRF, and global logout.
+- Forced PostgreSQL RLS under an unprivileged application role.
+- Testcontainers coverage for migrations, HTTP flows, and cross-tenant reads/writes.
 
 ### Quick start
 
