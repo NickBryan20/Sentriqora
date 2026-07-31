@@ -24,3 +24,4 @@ minimumReleaseAgeExclude:
   - bullmq@6.0.2
   - lint-staged@17.3.0
   - turbo@2.10.8
+  - ioredis@6.0.0

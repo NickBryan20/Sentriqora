@@ -80,7 +80,7 @@ services:
     build:
       context: .
       dockerfile: infrastructure/docker/Dockerfile.api
-    command: ['pnpm', 'prisma:migrate:deploy']
+    command: ['node', 'node_modules/prisma/build/index.js', 'migrate', 'deploy']
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-200520}@postgres:5432/${POSTGRES_DB:-aegisflow_db}
       NODE_ENV: development

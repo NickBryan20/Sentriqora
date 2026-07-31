@@ -4,15 +4,15 @@ ENV PATH=$PNPM_HOME:$PATH
 WORKDIR /workspace
 RUN corepack enable
 COPY . .
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=aegisflow-pnpm-store,target=/pnpm/store pnpm install --frozen-lockfile
 RUN pnpm turbo run build --filter=@aegisflow/event-simulator
 
 FROM node:24.18.0-bookworm-slim AS runtime
 ENV NODE_ENV=production
-ENV PNPM_HOME=/pnpm
-ENV PATH=$PNPM_HOME:$PATH
 WORKDIR /workspace
-RUN corepack enable
-COPY --from=builder --chown=node:node /workspace /workspace
+COPY --from=builder --chown=node:node /workspace/package.json /workspace/pnpm-lock.yaml /workspace/pnpm-workspace.yaml ./
+COPY --from=builder --chown=node:node /workspace/node_modules ./node_modules
+COPY --from=builder --chown=node:node /workspace/packages ./packages
+COPY --from=builder --chown=node:node /workspace/apps/event-simulator ./apps/event-simulator
 USER node
-CMD ["pnpm", "--filter", "@aegisflow/event-simulator", "start"]
+CMD ["node", "apps/event-simulator/dist/main.js"]

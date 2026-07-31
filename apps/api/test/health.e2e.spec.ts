@@ -2,7 +2,7 @@ import type { ComponentHealth } from '@aegisflow/contracts';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { AppModule } from '../src/app.module';
 import { configureApplication } from '../src/bootstrap';
@@ -11,7 +11,7 @@ import { DEPENDENCY_HEALTH_PORT } from '../src/health/application/ports/dependen
 describe('health endpoints', () => {
   let app: INestApplication;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const components: ComponentHealth[] = [
       { name: 'postgresql', status: 'up' },
       { name: 'redis', status: 'up' },
@@ -27,7 +27,7 @@ describe('health endpoints', () => {
     await app.init();
   });
 
-  afterEach(async () => {
+  afterAll(async () => {
     await app.close();
   });
 
