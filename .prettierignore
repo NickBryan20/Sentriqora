@@ -1,0 +1,9 @@
+.next
+.turbo
+apps/web/next-env.d.ts
+coverage
+dist
+node_modules
+packages/contracts/src/generated
+pnpm-lock.yaml
+Prompt_Maestro.md

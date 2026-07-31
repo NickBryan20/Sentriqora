@@ -1,0 +1,26 @@
+packages:
+  - apps/*
+  - packages/*
+
+allowBuilds:
+  '@prisma/engines': true
+  '@scarf/scarf': false
+  esbuild: true
+  msgpackr-extract: false
+  prisma: true
+  protobufjs: true
+  sharp: true
+  unrs-resolver: true
+
+minimumReleaseAgeExclude:
+  - '@turbo/darwin-64@2.10.8'
+  - '@turbo/darwin-arm64@2.10.8'
+  - '@turbo/linux-64@2.10.8'
+  - '@turbo/linux-arm64@2.10.8'
+  - '@turbo/windows-64@2.10.8'
+  - '@turbo/windows-arm64@2.10.8'
+  - '@types/react-dom@19.2.4'
+  - '@types/react@19.2.18'
+  - bullmq@6.0.2
+  - lint-staged@17.3.0
+  - turbo@2.10.8

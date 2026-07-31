@@ -1,0 +1,31 @@
+# Dependencies and build output
+node_modules/
+.pnpm-store/
+.next/
+.turbo/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+!.env.test.example
+
+# Logs and local state
+*.log
+*.pid
+.pnpm-debug.log
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Generated clients and local infrastructure data
+packages/contracts/src/generated/
+.data/

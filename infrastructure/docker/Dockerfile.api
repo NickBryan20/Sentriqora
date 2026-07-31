@@ -1,0 +1,19 @@
+FROM node:24.18.0-bookworm-slim AS builder
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+WORKDIR /workspace
+RUN corepack enable
+COPY . .
+RUN pnpm install --frozen-lockfile
+RUN pnpm turbo run build --filter=@aegisflow/api
+
+FROM node:24.18.0-bookworm-slim AS runtime
+ENV NODE_ENV=production
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+WORKDIR /workspace
+RUN corepack enable
+COPY --from=builder --chown=node:node /workspace /workspace
+USER node
+EXPOSE 3001
+CMD ["pnpm", "--filter", "@aegisflow/api", "start"]

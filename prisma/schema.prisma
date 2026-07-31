@@ -1,0 +1,38 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../packages/contracts/src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum OutboxStatus {
+  PENDING
+  PROCESSING
+  PUBLISHED
+  FAILED
+
+  @@map("outbox_status")
+}
+
+model OutboxEvent {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String?      @map("organization_id") @db.Uuid
+  aggregateType  String       @map("aggregate_type") @db.VarChar(100)
+  aggregateId    String       @map("aggregate_id") @db.Uuid
+  eventType      String       @map("event_type") @db.VarChar(150)
+  payload        Json
+  status         OutboxStatus @default(PENDING)
+  occurredAt     DateTime     @map("occurred_at") @db.Timestamptz(6)
+  availableAt    DateTime     @default(now()) @map("available_at") @db.Timestamptz(6)
+  publishedAt    DateTime?    @map("published_at") @db.Timestamptz(6)
+  retryCount     Int          @default(0) @map("retry_count")
+  lastErrorCode  String?      @map("last_error_code") @db.VarChar(100)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([status, availableAt], map: "outbox_events_dispatch_idx")
+  @@index([organizationId, occurredAt], map: "outbox_events_tenant_time_idx")
+  @@map("outbox_events")
+}
