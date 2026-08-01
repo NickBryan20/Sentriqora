@@ -5,6 +5,8 @@ import type {
   AssetTypeValue,
   ConnectorStatusValue,
   ConnectorTypeValue,
+  EventFormatValue,
+  RawEventStatusValue,
 } from '@aegisflow/contracts';
 
 import type { RequestAudit } from '../../../identity/application/ports/identity-repository.port';
@@ -211,10 +213,28 @@ export interface ResourceRepositoryPort {
     authentication: 'api_key' | 'webhook_signature';
     connectorId: string;
     contentType: string;
+    correlationId: string;
+    deduplicationKey: string;
     idempotency: IdempotencyContext;
+    payload: EncryptedValue & {
+      format: EventFormatValue;
+      hash: string;
+      recordCount: number;
+      size: number;
+      sourceEventId: string | null;
+    };
     organizationId: string;
     receivedAt: Date;
-  }): Promise<IdempotentResult<{ accepted: true; receiptId: string; receivedAt: string }>>;
+    retentionUntil: Date;
+  }): Promise<
+    IdempotentResult<{
+      accepted: true;
+      duplicate: boolean;
+      receiptId: string;
+      receivedAt: string;
+      status: RawEventStatusValue;
+    }>
+  >;
   removeDependency(input: {
     audit: RequestAudit;
     dependencyId: string;

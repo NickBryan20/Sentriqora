@@ -108,6 +108,34 @@ enum IdempotencyStatus {
   @@map("idempotency_status")
 }
 
+enum RawEventStatus {
+  RECEIVED
+  QUEUED
+  PROCESSING
+  NORMALIZED
+  REJECTED
+  FAILED
+
+  @@map("raw_event_status")
+}
+
+enum EventFormat {
+  JSON
+  CSV
+
+  @@map("event_format")
+}
+
+enum EventSeverity {
+  INFO
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+
+  @@map("event_severity")
+}
+
 model Organization {
   id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name               String              @db.VarChar(120)
@@ -126,6 +154,8 @@ model Organization {
   webhookSecrets     WebhookSecret[]
   apiKeys            ApiKey[]
   idempotencyRecords IdempotencyRecord[]
+  rawEvents          RawEvent[]
+  normalizedEvents   NormalizedEvent[]
   eventRecords       EventRecord[]
   outboxEvents       OutboxEvent[]
 
@@ -380,6 +410,7 @@ model Asset {
   owner              Membership?       @relation(fields: [ownerMembershipId, organizationId], references: [id, organizationId], onDelete: Restrict)
   sourceDependencies AssetDependency[] @relation("AssetDependencySource")
   targetDependencies AssetDependency[] @relation("AssetDependencyTarget")
+  normalizedEvents   NormalizedEvent[]
 
   @@unique([organizationId, key], map: "assets_org_key_key")
   @@unique([id, organizationId], map: "assets_id_org_key")
@@ -407,26 +438,101 @@ model AssetDependency {
 }
 
 model Connector {
-  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizationId String          @map("organization_id") @db.Uuid
-  key            String          @db.VarChar(64)
-  name           String          @db.VarChar(120)
-  description    String          @default("") @db.VarChar(500)
-  type           ConnectorType
-  status         ConnectorStatus @default(ACTIVE)
-  configuration  Json            @default("{}")
-  version        Int             @default(1)
-  lastSeenAt     DateTime?       @map("last_seen_at") @db.Timestamptz(6)
-  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
-  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  webhookSecrets WebhookSecret[]
-  apiKeys        ApiKey[]
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String            @map("organization_id") @db.Uuid
+  key              String            @db.VarChar(64)
+  name             String            @db.VarChar(120)
+  description      String            @default("") @db.VarChar(500)
+  type             ConnectorType
+  status           ConnectorStatus   @default(ACTIVE)
+  configuration    Json              @default("{}")
+  version          Int               @default(1)
+  lastSeenAt       DateTime?         @map("last_seen_at") @db.Timestamptz(6)
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  webhookSecrets   WebhookSecret[]
+  apiKeys          ApiKey[]
+  rawEvents        RawEvent[]
+  normalizedEvents NormalizedEvent[]
 
   @@unique([organizationId, key], map: "connectors_org_key_key")
   @@unique([id, organizationId], map: "connectors_id_org_key")
   @@index([organizationId, status, type], map: "connectors_org_status_type_idx")
   @@map("connectors")
+}
+
+model RawEvent {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String            @map("organization_id") @db.Uuid
+  connectorId       String            @map("connector_id") @db.Uuid
+  format            EventFormat
+  status            RawEventStatus    @default(RECEIVED)
+  contentType       String            @map("content_type") @db.VarChar(120)
+  sourceEventId     String?           @map("source_event_id") @db.VarChar(128)
+  deduplicationKey  String            @map("deduplication_key") @db.Char(64)
+  payloadHash       String            @map("payload_hash") @db.Char(64)
+  encryptedPayload  String            @map("encrypted_payload") @db.Text
+  encryptionIv      String            @map("encryption_iv") @db.VarChar(32)
+  encryptionAuthTag String            @map("encryption_auth_tag") @db.VarChar(32)
+  payloadSize       Int               @map("payload_size")
+  recordCount       Int               @map("record_count")
+  correlationId     String            @map("correlation_id") @db.VarChar(128)
+  retryCount        Int               @default(0) @map("retry_count")
+  rejectionCode     String?           @map("rejection_code") @db.VarChar(80)
+  receivedAt        DateTime          @default(now()) @map("received_at") @db.Timestamptz(6)
+  queuedAt          DateTime?         @map("queued_at") @db.Timestamptz(6)
+  processedAt       DateTime?         @map("processed_at") @db.Timestamptz(6)
+  retentionUntil    DateTime          @map("retention_until") @db.Timestamptz(6)
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  connector         Connector         @relation(fields: [connectorId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  normalizedEvents  NormalizedEvent[]
+
+  @@unique([organizationId, connectorId, deduplicationKey], map: "raw_events_org_connector_dedup_key")
+  @@unique([id, organizationId], map: "raw_events_id_org_key")
+  @@index([organizationId, status, receivedAt], map: "raw_events_org_status_received_idx")
+  @@index([status, receivedAt], map: "raw_events_dispatch_idx")
+  @@index([retentionUntil], map: "raw_events_retention_idx")
+  @@map("raw_events")
+}
+
+model NormalizedEvent {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String        @map("organization_id") @db.Uuid
+  rawEventId     String        @map("raw_event_id") @db.Uuid
+  connectorId    String        @map("connector_id") @db.Uuid
+  assetId        String?       @map("asset_id") @db.Uuid
+  recordIndex    Int           @map("record_index")
+  sourceEventId  String?       @map("source_event_id") @db.VarChar(128)
+  eventType      String        @map("event_type") @db.VarChar(120)
+  severity       EventSeverity
+  message        String        @default("") @db.VarChar(2000)
+  actorUserHash  String?       @map("actor_user_hash") @db.Char(64)
+  sourceIpHash   String?       @map("source_ip_hash") @db.Char(64)
+  attributes     Json          @default("{}")
+  fingerprint    String        @db.Char(64)
+  schemaVersion  String        @default("1.0") @map("schema_version") @db.VarChar(20)
+  maskingVersion String        @default("1.0") @map("masking_version") @db.VarChar(20)
+  occurredAt     DateTime      @map("occurred_at") @db.Timestamptz(6)
+  receivedAt     DateTime      @map("received_at") @db.Timestamptz(6)
+  normalizedAt   DateTime      @default(now()) @map("normalized_at") @db.Timestamptz(6)
+  retentionUntil DateTime      @map("retention_until") @db.Timestamptz(6)
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  rawEvent       RawEvent      @relation(fields: [rawEventId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  connector      Connector     @relation(fields: [connectorId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  asset          Asset?        @relation(fields: [assetId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([rawEventId, recordIndex], map: "normalized_events_raw_record_key")
+  @@unique([id, organizationId], map: "normalized_events_id_org_key")
+  @@index([organizationId, occurredAt, id], map: "normalized_events_org_cursor_idx")
+  @@index([organizationId, severity, occurredAt], map: "normalized_events_org_severity_idx")
+  @@index([organizationId, eventType, occurredAt], map: "normalized_events_org_type_idx")
+  @@index([organizationId, assetId, occurredAt], map: "normalized_events_org_asset_idx")
+  @@index([retentionUntil], map: "normalized_events_retention_idx")
+  @@map("normalized_events")
 }
 
 model WebhookSecret {

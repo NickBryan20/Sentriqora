@@ -16,6 +16,7 @@ export const PERMISSION_KEYS = [
   'connector.secret.rotate',
   'api-key.read',
   'api-key.manage',
+  'event.read',
 ] as const;
 
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
@@ -40,6 +41,7 @@ export const SYSTEM_ROLE_PERMISSIONS: Readonly<Record<string, readonly Permissio
     'connector.secret.rotate',
     'api-key.read',
     'api-key.manage',
+    'event.read',
   ],
   analyst: [
     'organization.read',
@@ -51,6 +53,7 @@ export const SYSTEM_ROLE_PERMISSIONS: Readonly<Record<string, readonly Permissio
     'asset.read',
     'asset.manage',
     'connector.read',
+    'event.read',
   ],
   viewer: [
     'organization.read',
@@ -61,6 +64,7 @@ export const SYSTEM_ROLE_PERMISSIONS: Readonly<Record<string, readonly Permissio
     'mfa.manage',
     'asset.read',
     'connector.read',
+    'event.read',
   ],
 };
 

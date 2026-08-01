@@ -3,8 +3,24 @@ ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 WORKDIR /workspace
 RUN corepack enable
-COPY . .
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY apps/api/package.json ./apps/api/package.json
+COPY apps/event-simulator/package.json ./apps/event-simulator/package.json
+COPY apps/web/package.json ./apps/web/package.json
+COPY apps/worker/package.json ./apps/worker/package.json
+COPY packages/config-eslint/package.json ./packages/config-eslint/package.json
+COPY packages/config-typescript/package.json ./packages/config-typescript/package.json
+COPY packages/contracts/package.json ./packages/contracts/package.json
+COPY packages/domain/package.json ./packages/domain/package.json
+COPY packages/testing/package.json ./packages/testing/package.json
+COPY packages/ui/package.json ./packages/ui/package.json
 RUN --mount=type=cache,id=aegisflow-pnpm-store,target=/pnpm/store pnpm install --frozen-lockfile
+COPY turbo.json tsconfig.json ./
+COPY apps/event-simulator/*.json ./apps/event-simulator/
+COPY apps/event-simulator/src ./apps/event-simulator/src
+COPY packages/config-typescript/*.json ./packages/config-typescript/
+COPY packages/contracts/*.json ./packages/contracts/
+COPY packages/contracts/src ./packages/contracts/src
 RUN pnpm turbo run build --filter=@aegisflow/event-simulator
 
 FROM node:24.18.0-bookworm-slim AS runtime

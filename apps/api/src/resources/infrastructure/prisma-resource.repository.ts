@@ -1,5 +1,4 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
 
 import { ApplicationError } from '../../identity/application/application-error';
 import { TenantPrismaExecutor } from '../../identity/infrastructure/prisma/tenant-prisma.executor';
@@ -580,12 +579,11 @@ export class PrismaResourceRepository implements ResourceRepositoryPort {
 
   recordIngress(
     input: Parameters<ResourceRepositoryPort['recordIngress']>[0],
-  ): Promise<IdempotentResult<{ accepted: true; receiptId: string; receivedAt: string }>> {
+  ): ReturnType<ResourceRepositoryPort['recordIngress']> {
     return this.executor.run(
       { organizationId: input.organizationId, userId: null },
       (transaction) =>
         this.idempotent(transaction, input.organizationId, input.idempotency, async () => {
-          const receiptId = randomUUID();
           const connector = await transaction.connector.updateMany({
             data: { lastSeenAt: input.receivedAt },
             where: {
@@ -607,39 +605,92 @@ export class PrismaResourceRepository implements ResourceRepositoryPort {
               where: { id: input.apiKeyId, organizationId: input.organizationId, revokedAt: null },
             });
           }
+
+          const deduplicationLock = `${input.organizationId}:${input.connectorId}:${input.deduplicationKey}`;
+          await transaction.$queryRaw`
+            SELECT 1 AS locked
+            FROM (
+              SELECT pg_advisory_xact_lock(hashtextextended(${deduplicationLock}, 0)) AS acquired
+            ) AS deduplication_lock
+          `;
+          const existing = await transaction.rawEvent.findUnique({
+            where: {
+              organizationId_connectorId_deduplicationKey: {
+                connectorId: input.connectorId,
+                deduplicationKey: input.deduplicationKey,
+                organizationId: input.organizationId,
+              },
+            },
+          });
+          if (existing !== null) {
+            return {
+              accepted: true as const,
+              duplicate: true,
+              receiptId: existing.id,
+              receivedAt: existing.receivedAt.toISOString(),
+              status: existing.status,
+            };
+          }
+
+          const rawEvent = await transaction.rawEvent.create({
+            data: {
+              connectorId: input.connectorId,
+              contentType: input.contentType,
+              correlationId: input.correlationId,
+              deduplicationKey: input.deduplicationKey,
+              encryptedPayload: input.payload.ciphertext,
+              encryptionAuthTag: input.payload.authTag,
+              encryptionIv: input.payload.iv,
+              format: input.payload.format,
+              organizationId: input.organizationId,
+              payloadHash: input.payload.hash,
+              payloadSize: input.payload.size,
+              receivedAt: input.receivedAt,
+              recordCount: input.payload.recordCount,
+              retentionUntil: input.retentionUntil,
+              sourceEventId: input.payload.sourceEventId,
+            },
+          });
           await transaction.eventRecord.create({
             data: {
-              action: 'connector.ingress.accepted',
-              correlationId: `ingress:${receiptId}`,
+              action: 'raw_event.received',
+              correlationId: input.correlationId,
               metadata: {
                 authentication: input.authentication,
                 connectorId: input.connectorId,
                 contentType: input.contentType,
+                format: input.payload.format,
+                recordCount: input.payload.recordCount,
                 requestHash: input.idempotency.requestHash,
               },
               organizationId: input.organizationId,
               outcome: 'success',
-              targetId: receiptId,
-              targetType: 'ingress_receipt',
+              targetId: rawEvent.id,
+              targetType: 'raw_event',
             },
           });
           await transaction.outboxEvent.create({
             data: {
-              aggregateId: receiptId,
-              aggregateType: 'connector_ingress',
-              eventType: 'connector.ingress.received.v1',
+              aggregateId: rawEvent.id,
+              aggregateType: 'raw_event',
+              eventType: 'raw_event.received.v1',
               occurredAt: input.receivedAt,
               organizationId: input.organizationId,
               payload: {
-                authentication: input.authentication,
                 connectorId: input.connectorId,
-                contentType: input.contentType,
-                receiptId,
-                requestHash: input.idempotency.requestHash,
+                correlationId: input.correlationId,
+                organizationId: input.organizationId,
+                rawEventId: rawEvent.id,
               },
             },
           });
-          return { accepted: true as const, receiptId, receivedAt: input.receivedAt.toISOString() };
+          return {
+            accepted: true as const,
+            duplicate: false,
+            receiptId: rawEvent.id,
+            receivedAt: rawEvent.receivedAt.toISOString(),
+            status: rawEvent.status,
+          };
         }),
     );
   }

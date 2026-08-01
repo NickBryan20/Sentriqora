@@ -2,7 +2,7 @@
   "extends": "../config-typescript/library.json",
   "compilerOptions": {
     "noEmit": true,
-    "rootDir": "src"
+    "rootDir": "."
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts"]
 }

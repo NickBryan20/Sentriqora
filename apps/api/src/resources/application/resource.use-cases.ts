@@ -8,11 +8,14 @@ import {
   updateAssetSchema,
   updateConnectorSchema,
 } from '@aegisflow/contracts';
+import { EventPayloadValidationError, inspectIngressPayload } from '@aegisflow/contracts';
 import { IdempotencyKey, ResourceKey, ResourcePolicy } from '@aegisflow/domain';
 import { Inject, Injectable } from '@nestjs/common';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { TextDecoder } from 'node:util';
 
 import { ApplicationError } from '../../identity/application/application-error';
+import { recordAcceptedIngress, recordRejectedIngress } from '../../metrics/ingestion.metrics';
 import type { RequestAudit } from '../../identity/application/ports/identity-repository.port';
 import {
   IDENTITY_SECURITY_PORT,
@@ -42,6 +45,7 @@ export interface ResourceRequestContext {
 export interface IngressRequest {
   apiKey: string | undefined;
   connectorId: string;
+  correlationId: string;
   contentType: string;
   idempotencyKey: string | undefined;
   ipAddress: string;
@@ -482,11 +486,34 @@ export class ResourceUseCases {
       authentication = 'api_key';
     }
 
-    return this.repository.recordIngress({
+    let inspected;
+    try {
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(input.rawBody);
+      inspected = inspectIngressPayload(connector.type, input.contentType, text);
+    } catch (error) {
+      if (error instanceof EventPayloadValidationError || error instanceof TypeError) {
+        recordRejectedIngress(
+          error instanceof EventPayloadValidationError ? error.code : 'invalid_text_encoding',
+        );
+        throw new ApplicationError('validation_failed', 'The event payload is invalid.', 400);
+      }
+      throw error;
+    }
+    const payloadHash = this.digest(input.rawBody);
+    const deduplicationKey = this.digest(
+      inspected.sourceEventId === null
+        ? `payload:${payloadHash}`
+        : `source-event:${inspected.sourceEventId}`,
+    );
+    const encryptedPayload = this.security.encrypt(inspected.text);
+
+    const result = await this.repository.recordIngress({
       apiKeyId,
       authentication,
       connectorId: input.connectorId,
       contentType: input.contentType.slice(0, 120),
+      correlationId: input.correlationId,
+      deduplicationKey,
       idempotency: this.idempotency(
         null,
         `connector.${input.connectorId}.ingress`,
@@ -494,8 +521,24 @@ export class ResourceUseCases {
         { bodyHash: this.digest(input.rawBody), contentType: input.contentType },
       ),
       organizationId: input.organizationId,
+      payload: {
+        ...encryptedPayload,
+        format: inspected.format,
+        hash: payloadHash,
+        recordCount: inspected.recordCount,
+        size: input.rawBody.byteLength,
+        sourceEventId: inspected.sourceEventId,
+      },
       receivedAt: now,
+      retentionUntil: new Date(now.getTime() + 30 * 24 * 60 * 60_000),
     });
+    recordAcceptedIngress({
+      authentication,
+      duplicate: result.value.duplicate,
+      format: inspected.format,
+      payloadBytes: input.rawBody.byteLength,
+    });
+    return result;
   }
 
   private assertTenant(principal: AuthPrincipal, organizationId: string): void {

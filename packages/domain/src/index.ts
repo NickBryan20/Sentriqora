@@ -35,3 +35,11 @@ export type {
   ConnectorConfiguration,
   ConnectorConfigurationValue,
 } from './resources/resource-policy';
+export {
+  EventNormalizationError,
+  EventNormalizationPolicy,
+} from './events/event-normalization-policy';
+export type {
+  EventCandidateForNormalization,
+  NormalizedEventValue,
+} from './events/event-normalization-policy';

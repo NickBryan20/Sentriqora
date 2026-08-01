@@ -3,8 +3,8 @@
 AegisFlow es una plataforma web multi-organización para recolectar eventos tecnológicos,
 correlacionar señales, gestionar incidentes y asistir decisiones con evidencia. El proyecto se
 implementa por fases; actualmente contiene las fases verificables **Fase 0 — Bootstrap**,
-**Fase 1 — Identidad y multi-tenancy** y **Fase 2 — Activos y conectores**. La normalización de
-eventos, detección, incidentes, RAG y playbooks se
+**Fase 1 — Identidad y multi-tenancy**, **Fase 2 — Activos y conectores** y **Fase 3 — Ingestión de
+eventos**. La detección, incidentes, RAG y playbooks se
 incorporarán en el orden documentado en `Prompt_Maestro.md`.
 
 ## Estado de Fase 0
@@ -31,6 +31,14 @@ incorporarán en el orden documentado en `Prompt_Maestro.md`.
 - Secretos webhook rotables y cifrados; API keys con scopes, expiración y revocación.
 - Idempotencia PostgreSQL con replay seguro, auditoría y outbox transaccional.
 - Entrada autenticada por HMAC/API key, límite Redis y aislamiento RLS forzado.
+
+## Estado de Fase 3
+
+- Recepción JSON/CSV estricta con límites de tamaño, profundidad y número de registros.
+- `RawEvent` cifrado, deduplicación semántica, auditoría y outbox en una sola transacción.
+- Dispatcher de privilegios mínimos, cola BullMQ y worker multi-tenant con reintentos idempotentes.
+- `NormalizedEvent` con PII seudonimizada y secretos, tokens, correos e IP enmascarados.
+- Consulta segura por cursor, recibos sin payload crudo, métricas y simulador de eventos.
 
 ## Inicio rápido
 
@@ -90,9 +98,9 @@ reportar una vulnerabilidad.
 
 AegisFlow is a multi-organization web platform for collecting technology events, correlating
 signals, managing incidents, and assisting evidence-based decisions. Development follows explicit
-phases; the repository currently contains the verifiable **Phase 0 — Bootstrap** and **Phase 1 —
-Identity and multi-tenancy**, and **Phase 2 — Assets and connectors**. Event normalization,
-detection, incidents, RAG, and playbooks will be added in
+phases; the repository currently contains the verifiable **Phase 0 — Bootstrap**, **Phase 1 —
+Identity and multi-tenancy**, **Phase 2 — Assets and connectors**, and **Phase 3 — Event ingestion**.
+Detection, incidents, RAG, and playbooks will be added in
 the order defined by `Prompt_Maestro.md`.
 
 ### Phase 0 status
@@ -119,6 +127,14 @@ the order defined by `Prompt_Maestro.md`.
 - Rotatable encrypted webhook secrets and scoped, expiring, revocable API keys.
 - PostgreSQL idempotency with safe replay, atomic audit records, and outbox events.
 - HMAC/API-key ingress, Redis rate limits, and forced tenant RLS.
+
+### Phase 3 status
+
+- Strict JSON/CSV ingestion with payload, depth, and record-count limits.
+- Encrypted raw events, semantic deduplication, audit, and outbox in one transaction.
+- Least-privilege dispatcher, BullMQ queue, and idempotent tenant-scoped worker.
+- Normalized events with pseudonymized PII and masked secrets, tokens, emails, and IPs.
+- Cursor-based safe queries, raw-free receipts, metrics, and event simulator.
 
 ### Quick start
 

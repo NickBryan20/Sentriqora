@@ -148,6 +148,9 @@ services:
       context: .
       dockerfile: infrastructure/docker/Dockerfile.worker
     environment:
+      AUTH_ENCRYPTION_KEY: ${AUTH_ENCRYPTION_KEY:-ZGV2LW9ubHktYWVzLWtleS0zMi1ieXRlcy1sb25nISE=}
+      AUTH_TOKEN_PEPPER: ${AUTH_TOKEN_PEPPER:-dev-only-token-pepper-change-before-production-2026}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-aegisflow}:${POSTGRES_PASSWORD:-aegisflow-local-only}@postgres:5432/${POSTGRES_DB:-aegisflow}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       NODE_ENV: development
       REDIS_URL: redis://redis:6379
@@ -255,6 +258,10 @@ services:
       dockerfile: infrastructure/docker/Dockerfile.event-simulator
     environment:
       EVENT_SIMULATOR_API_URL: http://api:3001/api/v1
+      EVENT_SIMULATOR_API_KEY: ${EVENT_SIMULATOR_API_KEY:-}
+      EVENT_SIMULATOR_CONNECTOR_ID: ${EVENT_SIMULATOR_CONNECTOR_ID:-}
+      EVENT_SIMULATOR_COUNT: ${EVENT_SIMULATOR_COUNT:-10}
+      EVENT_SIMULATOR_ORGANIZATION_ID: ${EVENT_SIMULATOR_ORGANIZATION_ID:-}
     depends_on:
       api:
         condition: service_healthy

@@ -364,7 +364,13 @@ describe('PostgreSQL tenant isolation', () => {
       .expect(201);
     const webhookSecret = readStringProperty(secretResponse.body, 'secret');
     expect(webhookSecret).toMatch(/^whsec_/u);
-    const webhookBody = { event: 'signed-phase-2-contract-check' };
+    const webhookBody = {
+      attributes: { environment: 'test' },
+      eventId: randomUUID(),
+      eventType: 'webhook.contract.checked',
+      occurredAt: new Date().toISOString(),
+      severity: 'INFO',
+    };
     const webhookTimestamp = Math.floor(Date.now() / 1_000).toString();
     const webhookSignature = createHmac('sha256', webhookSecret)
       .update(`${webhookTimestamp}.${JSON.stringify(webhookBody)}`)
@@ -396,7 +402,18 @@ describe('PostgreSQL tenant isolation', () => {
       .send({ name: 'Integration test', scopes: ['connector.ingest'] })
       .expect(201);
     const apiKey = readStringProperty(apiKeyResponse.body, 'token');
-    const ingressBody = { event: 'phase-2-contract-check' };
+    const ingressBody = {
+      actor: { ip: '203.0.113.10', user: 'sensitive@example.test' },
+      attributes: {
+        password: 'must-not-survive',
+        sourceIp: '198.51.100.9',
+      },
+      eventId: randomUUID(),
+      eventType: 'simulator.contract.checked',
+      message: 'Login by sensitive@example.test from 203.0.113.10',
+      occurredAt: new Date().toISOString(),
+      severity: 'MEDIUM',
+    };
     const ingressIdempotencyKey = `ingress:receipt:${randomUUID()}`;
     const ingress = await agent
       .post(`/api/v1/ingress/organizations/${organizationId}/connectors/${simulatorConnectorId}`)
@@ -404,7 +421,14 @@ describe('PostgreSQL tenant isolation', () => {
       .set('idempotency-key', ingressIdempotencyKey)
       .send(ingressBody)
       .expect(202);
-    expect(ingress.body).toMatchObject({ accepted: true });
+    expect(ingress.body).toMatchObject({ accepted: true, duplicate: false, status: 'RECEIVED' });
+    const receiptId = readStringProperty(ingress.body, 'receiptId');
+    const storedRawEvent = await executor.run({ organizationId, userId: null }, (transaction) =>
+      transaction.rawEvent.findUnique({ where: { id: receiptId } }),
+    );
+    expect(storedRawEvent).not.toBeNull();
+    expect(storedRawEvent?.encryptedPayload).not.toContain('sensitive@example.test');
+    expect(storedRawEvent?.recordCount).toBe(1);
     const ingressReplay = await agent
       .post(`/api/v1/ingress/organizations/${organizationId}/connectors/${simulatorConnectorId}`)
       .set('x-api-key', apiKey)
@@ -415,6 +439,25 @@ describe('PostgreSQL tenant isolation', () => {
     expect(readStringProperty(ingressReplay.body, 'receiptId')).toBe(
       readStringProperty(ingress.body, 'receiptId'),
     );
+    const semanticDuplicate = await agent
+      .post(`/api/v1/ingress/organizations/${organizationId}/connectors/${simulatorConnectorId}`)
+      .set('x-api-key', apiKey)
+      .set('idempotency-key', `ingress:duplicate:${randomUUID()}`)
+      .send(ingressBody)
+      .expect(202);
+    expect(semanticDuplicate.body).toMatchObject({ duplicate: true });
+    expect(readStringProperty(semanticDuplicate.body, 'receiptId')).toBe(receiptId);
+    await agent
+      .get(`/api/v1/organizations/${organizationId}/event-ingestion/receipts/${receiptId}`)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({ id: receiptId, normalizedRecords: 0, status: 'RECEIVED' });
+        expect(JSON.stringify(body)).not.toContain('sensitive@example.test');
+      });
+    await agent
+      .get(`/api/v1/organizations/${organizationId}/events?limit=25`)
+      .expect(200)
+      .expect(({ body }) => expect(body).toEqual({ data: [], nextCursor: null }));
 
     await agent.get(`/api/v1/organizations/${organizationId}/members`).expect(200);
     await agent.get(`/api/v1/organizations/${otherOrganizationId}/members`).expect(403);

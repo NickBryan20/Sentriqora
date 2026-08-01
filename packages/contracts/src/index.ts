@@ -44,6 +44,26 @@ export {
   updateAssetSchema,
   updateConnectorSchema,
 } from './resources';
+export {
+  adaptEventCandidate,
+  canonicalEventSchema,
+  ingressReceiptSchema,
+  EVENT_FORMATS,
+  EVENT_SEVERITIES,
+  EventPayloadValidationError,
+  inspectIngressPayload,
+  MAX_INGRESS_RECORDS,
+  parseEventCandidates,
+  RAW_EVENT_STATUSES,
+} from './events';
+export type {
+  CanonicalEvent,
+  EventFormatValue,
+  EventSeverityValue,
+  IngressReceipt,
+  InspectedIngressPayload,
+  RawEventStatusValue,
+} from './events';
 export type {
   AssetCriticalityValue,
   AssetDependencyKindValue,

@@ -47,6 +47,7 @@ export class ConnectorIngressController {
     const result = await this.useCases.receiveIngress({
       apiKey,
       connectorId,
+      correlationId: request.header('x-correlation-id') ?? 'unavailable',
       contentType: contentType ?? 'application/octet-stream',
       idempotencyKey,
       ipAddress: request.ip || request.socket.remoteAddress || '0.0.0.0',
