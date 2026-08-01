@@ -61,3 +61,9 @@ export type {
   IncidentSlaTarget,
   IncidentStatusValue,
 } from './incidents/incident-policy';
+export { RagSecurityPolicy } from './knowledge/rag-policy';
+export type {
+  KnowledgeChunkValue,
+  KnowledgeTrustLevel,
+  RetrievalEvidence,
+} from './knowledge/rag-policy';

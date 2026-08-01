@@ -14,6 +14,7 @@ COPY apps/web/package.json ./apps/web/package.json
 COPY apps/worker/package.json ./apps/worker/package.json
 COPY packages/config-eslint/package.json ./packages/config-eslint/package.json
 COPY packages/config-typescript/package.json ./packages/config-typescript/package.json
+COPY packages/ai/package.json ./packages/ai/package.json
 COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/domain/package.json ./packages/domain/package.json
 COPY packages/testing/package.json ./packages/testing/package.json
@@ -24,6 +25,8 @@ COPY prisma ./prisma
 COPY apps/api/*.json ./apps/api/
 COPY apps/api/src ./apps/api/src
 COPY packages/config-typescript/*.json ./packages/config-typescript/
+COPY packages/ai/*.json ./packages/ai/
+COPY packages/ai/src ./packages/ai/src
 COPY packages/contracts/*.json ./packages/contracts/
 COPY packages/contracts/src ./packages/contracts/src
 COPY packages/domain/*.json ./packages/domain/

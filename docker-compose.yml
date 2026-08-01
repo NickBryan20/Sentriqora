@@ -66,13 +66,16 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-this-local-minio-password}
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-aegisflow_local}
       MINIO_BUCKET_EVIDENCE: ${MINIO_BUCKET_EVIDENCE:-aegisflow-evidence}
+      MINIO_BUCKET_KNOWLEDGE: ${MINIO_BUCKET_KNOWLEDGE:-aegisflow-knowledge}
     entrypoint:
       - /bin/sh
       - -ec
       - >-
         mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}";
         mc mb --ignore-existing "local/$${MINIO_BUCKET_EVIDENCE}";
-        mc anonymous set none "local/$${MINIO_BUCKET_EVIDENCE}"
+        mc anonymous set none "local/$${MINIO_BUCKET_EVIDENCE}";
+        mc mb --ignore-existing "local/$${MINIO_BUCKET_KNOWLEDGE}";
+        mc anonymous set none "local/$${MINIO_BUCKET_KNOWLEDGE}"
     restart: 'no'
     security_opt:
       - no-new-privileges:true
@@ -100,6 +103,7 @@ services:
       context: .
       dockerfile: infrastructure/docker/Dockerfile.api
     environment:
+      AI_PROVIDER: ${AI_PROVIDER:-deterministic}
       API_HOST: 0.0.0.0
       API_PORT: 3001
       ACCESS_TOKEN_TTL_SECONDS: ${ACCESS_TOKEN_TTL_SECONDS:-600}
@@ -117,7 +121,15 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-aegisflow_local}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-change-this-local-minio-password}
       MINIO_BUCKET_EVIDENCE: ${MINIO_BUCKET_EVIDENCE:-aegisflow-evidence}
+      MINIO_BUCKET_KNOWLEDGE: ${MINIO_BUCKET_KNOWLEDGE:-aegisflow-knowledge}
       NODE_ENV: development
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gpt-oss:20b}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6-sol}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_SERVICE_NAME: aegisflow-api
       REDIS_URL: redis://redis:6379
@@ -153,11 +165,23 @@ services:
       context: .
       dockerfile: infrastructure/docker/Dockerfile.worker
     environment:
+      AI_PROVIDER: ${AI_PROVIDER:-deterministic}
       AUTH_ENCRYPTION_KEY: ${AUTH_ENCRYPTION_KEY:-ZGV2LW9ubHktYWVzLWtleS0zMi1ieXRlcy1sb25nISE=}
       AUTH_TOKEN_PEPPER: ${AUTH_TOKEN_PEPPER:-dev-only-token-pepper-change-before-production-2026}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-200520}@postgres:5432/${POSTGRES_DB:-aegisflow_db}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-aegisflow_local}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-change-this-local-minio-password}
+      MINIO_BUCKET_KNOWLEDGE: ${MINIO_BUCKET_KNOWLEDGE:-aegisflow-knowledge}
       NODE_ENV: development
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gpt-oss:20b}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6-sol}
       REDIS_URL: redis://redis:6379
       WORKER_METRICS_PORT: 9464
     depends_on:
@@ -165,6 +189,8 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     init: true
     read_only: true
     tmpfs:

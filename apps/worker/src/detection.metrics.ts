@@ -33,6 +33,19 @@ const notificationDeliveries = new Counter({
   labelNames: ['channel', 'outcome'] as const,
   name: 'aegisflow_notification_deliveries_total',
 });
+const knowledgeIndexes = new Counter({
+  help: 'Knowledge indexing jobs by outcome.',
+  labelNames: ['outcome'] as const,
+  name: 'aegisflow_knowledge_index_jobs_total',
+});
+const knowledgeChunks = new Counter({
+  help: 'Knowledge chunks safely indexed.',
+  name: 'aegisflow_knowledge_chunks_total',
+});
+const embeddingTokens = new Counter({
+  help: 'Approximate input tokens sent to the configured embedding provider.',
+  name: 'aegisflow_embedding_input_tokens_total',
+});
 
 export function recordAlertCreated(severity: string): void {
   alerts.inc({ severity });
@@ -51,6 +64,11 @@ export function recordSlaBreach(kind: string): void {
 }
 export function recordNotificationDelivery(channel: string, outcome: string): void {
   notificationDeliveries.inc({ channel, outcome });
+}
+export function recordKnowledgeIndex(outcome: string, chunks: number, tokens: number): void {
+  knowledgeIndexes.inc({ outcome });
+  knowledgeChunks.inc(chunks);
+  embeddingTokens.inc(tokens);
 }
 
 export function startMetricsServer(port: number): Server {

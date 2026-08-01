@@ -26,6 +26,7 @@ services:
 
   api:
     environment:
+      AI_PROVIDER: ${AI_PROVIDER:-deterministic}
       AUTH_ENCRYPTION_KEY: ${AUTH_ENCRYPTION_KEY:?AUTH_ENCRYPTION_KEY is required}
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:?AUTH_JWT_SECRET is required}
       AUTH_TOKEN_PEPPER: ${AUTH_TOKEN_PEPPER:?AUTH_TOKEN_PEPPER is required}
@@ -35,10 +36,15 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
       MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:?MINIO_PUBLIC_ENDPOINT is required}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       NODE_ENV: production
 
   worker:
     environment:
+      AI_PROVIDER: ${AI_PROVIDER:-deterministic}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       NODE_ENV: production
 
   otel-collector:

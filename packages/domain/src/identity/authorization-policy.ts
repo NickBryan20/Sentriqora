@@ -26,6 +26,9 @@ export const PERMISSION_KEYS = [
   'incident.evidence',
   'sla-policy.manage',
   'notification.read',
+  'knowledge.read',
+  'knowledge.manage',
+  'ai-recommendation.request',
 ] as const;
 
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
@@ -60,6 +63,9 @@ export const SYSTEM_ROLE_PERMISSIONS: Readonly<Record<string, readonly Permissio
     'incident.evidence',
     'sla-policy.manage',
     'notification.read',
+    'knowledge.read',
+    'knowledge.manage',
+    'ai-recommendation.request',
   ],
   analyst: [
     'organization.read',
@@ -80,6 +86,9 @@ export const SYSTEM_ROLE_PERMISSIONS: Readonly<Record<string, readonly Permissio
     'incident.manage',
     'incident.evidence',
     'notification.read',
+    'knowledge.read',
+    'knowledge.manage',
+    'ai-recommendation.request',
   ],
   viewer: [
     'organization.read',
@@ -95,6 +104,8 @@ export const SYSTEM_ROLE_PERMISSIONS: Readonly<Record<string, readonly Permissio
     'alert.read',
     'incident.read',
     'notification.read',
+    'knowledge.read',
+    'ai-recommendation.request',
   ],
 };
 

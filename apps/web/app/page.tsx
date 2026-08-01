@@ -5,7 +5,7 @@ const foundations = [
   ['Ingesta', 'Eventos validados, enmascarados y deduplicados'],
   ['Detección', 'Reglas versionadas, ventanas y z-score explicable'],
   ['Incidentes', 'Timeline, responsables, SLA y evidencias verificadas'],
-  ['Seguridad', 'RLS, permisos finos y auditoría append-only'],
+  ['RAG seguro', 'Recomendaciones con citas, confianza y abstención'],
 ] as const;
 
 export default function Home() {
@@ -22,7 +22,7 @@ export default function Home() {
               AEGISFLOW
             </span>
           </div>
-          <StatusBadge tone="healthy">Fase 5 · Respuesta activa</StatusBadge>
+          <StatusBadge tone="healthy">Fase 6 · IA fundamentada</StatusBadge>
         </header>
         <div className="max-w-3xl py-20">
           <p className="mb-5 text-sm font-semibold uppercase tracking-[0.3em] text-cyan-300">
@@ -47,6 +47,12 @@ export default function Home() {
               href="/detections"
             >
               Ver detecciones
+            </Link>
+            <Link
+              className="inline-flex rounded-xl border border-violet-300/25 px-5 py-3 font-semibold text-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-300"
+              href="/knowledge"
+            >
+              Abrir conocimiento e IA
             </Link>
           </div>
         </div>

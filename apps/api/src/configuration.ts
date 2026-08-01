@@ -10,6 +10,7 @@ const booleanEnvironment = z.enum(['true', 'false']).transform((value) => value 
 
 const environmentSchema = z
   .object({
+    AI_PROVIDER: z.enum(['deterministic', 'ollama', 'openai']).default('deterministic'),
     ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).max(900).default(600),
     API_HOST: z.string().min(1).default('0.0.0.0'),
     API_PORT: z.coerce.number().int().min(1).max(65_535).default(3001),
@@ -37,13 +38,33 @@ const environmentSchema = z
       .string()
       .regex(/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/u)
       .default('aegisflow-evidence'),
+    MINIO_BUCKET_KNOWLEDGE: z
+      .string()
+      .regex(/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/u)
+      .default('aegisflow-knowledge'),
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    OLLAMA_BASE_URL: z.url().default('http://localhost:11434'),
+    OLLAMA_EMBEDDING_MODEL: z.string().min(1).max(120).default('nomic-embed-text'),
+    OLLAMA_MODEL: z.string().min(1).max(120).default('gpt-oss:20b'),
+    OPENAI_API_KEY: z.preprocess(
+      (value) => (value === '' ? undefined : value),
+      z.string().min(20).optional(),
+    ),
+    OPENAI_BASE_URL: z.url().default('https://api.openai.com/v1'),
+    OPENAI_EMBEDDING_MODEL: z.string().min(1).max(120).default('text-embedding-3-small'),
+    OPENAI_MODEL: z.string().min(1).max(120).default('gpt-5.6-sol'),
     OTEL_EXPORTER_OTLP_ENDPOINT: z.url().default('http://localhost:4318'),
     OTEL_SERVICE_NAME: z.string().min(1).default('aegisflow-api'),
     REDIS_URL: z.url().default('redis://localhost:6379'),
     REFRESH_TOKEN_TTL_SECONDS: z.coerce.number().int().min(3_600).max(2_592_000).default(2_592_000),
   })
   .superRefine((environment, context) => {
+    if (environment.AI_PROVIDER === 'openai' && environment.OPENAI_API_KEY === undefined) {
+      context.addIssue({
+        code: 'custom',
+        message: 'OPENAI_API_KEY is required when AI_PROVIDER=openai',
+      });
+    }
     if (environment.NODE_ENV !== 'production') {
       return;
     }

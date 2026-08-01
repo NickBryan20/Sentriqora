@@ -13,6 +13,7 @@ import { type Environment, validateEnvironment } from '../src/configuration';
 import { PrismaIdentityRepository } from '../src/identity/infrastructure/prisma/prisma-identity.repository';
 import { PrismaService } from '../src/identity/infrastructure/prisma/prisma.service';
 import { TenantPrismaExecutor } from '../src/identity/infrastructure/prisma/tenant-prisma.executor';
+import { PrismaKnowledgeRepository } from '../src/knowledge/infrastructure/prisma-knowledge.repository';
 import { PrismaResourceRepository } from '../src/resources/infrastructure/prisma-resource.repository';
 
 const { Client } = pg;
@@ -157,6 +158,152 @@ describe('PostgreSQL tenant isolation', () => {
         transaction.eventRecord.updateMany({ data: { outcome: 'tampered' } }),
       ),
     ).rejects.toThrow();
+  });
+
+  it('enforces tenant RLS on knowledge chunks and vector data', async () => {
+    const organizationA = randomUUID();
+    const organizationB = randomUUID();
+    const userA = randomUUID();
+    const userB = randomUUID();
+    for (const identity of [
+      { organizationId: organizationA, userId: userA, label: 'a' },
+      { organizationId: organizationB, userId: userB, label: 'b' },
+    ]) {
+      const email = `rag-${identity.label}-${randomUUID()}@example.test`;
+      await repository.register({
+        audit: { correlationId: randomUUID() },
+        displayName: `RAG Tenant ${identity.label}`,
+        email,
+        normalizedEmail: email,
+        organizationId: identity.organizationId,
+        organizationName: `RAG Tenant ${identity.label}`,
+        organizationSlug: `rag-${identity.label}-${identity.organizationId.slice(0, 8)}`,
+        passwordHash: 'test-argon-hash',
+        userId: identity.userId,
+      });
+    }
+    const knowledgeRepository = new PrismaKnowledgeRepository(executor);
+    const createdThroughRepository = await knowledgeRepository.createDocument({
+      actorUserId: userA,
+      contentType: 'text/plain',
+      embeddingModel: 'aegisflow-hash-embedding-v1',
+      embeddingProvider: 'deterministic',
+      objectKey: `${organizationA}/repository-create.txt`,
+      organizationId: organizationA,
+      sha256: 'e'.repeat(64),
+      sizeBytes: 64,
+      sourceType: 'RUNBOOK',
+      sourceUri: null,
+      title: 'Repository create regression',
+      trustLevel: 'VERIFIED',
+    });
+    expect(createdThroughRepository).toMatchObject({ currentVersion: 1, status: 'PENDING' });
+    const documentA = randomUUID();
+    const documentB = randomUUID();
+    const versionA = randomUUID();
+    const versionB = randomUUID();
+    const admin = new Client({ connectionString: process.env.DATABASE_URL });
+    await admin.connect();
+    try {
+      await admin.query(
+        `INSERT INTO knowledge_documents (
+           id, organization_id, created_by_user_id, title, source_type, trust_level,
+           status, updated_at
+         ) VALUES
+           ($1, $2, $3, 'Tenant A runbook', 'RUNBOOK', 'VERIFIED', 'INDEXED', now()),
+           ($4, $5, $6, 'Tenant B runbook', 'RUNBOOK', 'VERIFIED', 'INDEXED', now())`,
+        [documentA, organizationA, userA, documentB, organizationB, userB],
+      );
+      await admin.query(
+        `INSERT INTO knowledge_document_versions (
+           id, organization_id, document_id, created_by_user_id, version, object_key,
+           content_type, size_bytes, sha256, embedding_provider, embedding_model, indexed_at
+         ) VALUES
+           ($1, $2, $3, $4, 1, $5, 'text/plain', 64, $6, 'deterministic',
+            'aegisflow-hash-embedding-v1', now()),
+           ($7, $8, $9, $10, 1, $11, 'text/plain', 64, $12, 'deterministic',
+            'aegisflow-hash-embedding-v1', now())`,
+        [
+          versionA,
+          organizationA,
+          documentA,
+          userA,
+          `${organizationA}/a.txt`,
+          'a'.repeat(64),
+          versionB,
+          organizationB,
+          documentB,
+          userB,
+          `${organizationB}/b.txt`,
+          'b'.repeat(64),
+        ],
+      );
+      await admin.query(
+        `INSERT INTO knowledge_chunks (
+           organization_id, document_id, version_id, ordinal, content, token_estimate,
+           content_hash, embedding
+         ) VALUES
+           ($1, $2, $3, 0, 'Tenant A only', 4, $4, array_fill(0::real, ARRAY[768])::vector),
+           ($5, $6, $7, 0, 'Tenant B only', 4, $8, array_fill(0::real, ARRAY[768])::vector)`,
+        [
+          organizationA,
+          documentA,
+          versionA,
+          'c'.repeat(64),
+          organizationB,
+          documentB,
+          versionB,
+          'd'.repeat(64),
+        ],
+      );
+    } finally {
+      await admin.end();
+    }
+
+    const chunkA = await executor.run({ organizationId: organizationA, userId: userA }, (tx) =>
+      tx.knowledgeChunk.findFirstOrThrow({
+        select: { id: true },
+        where: { documentId: documentA },
+      }),
+    );
+    const recommendation = await knowledgeRepository.saveRecommendation({
+      actorUserId: userA,
+      answer: 'Follow the verified tenant A runbook.',
+      confidence: 0.8,
+      estimatedCostUsd: 0,
+      incidentId: null,
+      inputTokens: 20,
+      latencyMs: 5,
+      model: 'test-model',
+      organizationId: organizationA,
+      outputTokens: 8,
+      promptVersion: 'integration-test-v1',
+      provider: 'deterministic',
+      providerRequestId: null,
+      question: 'What action is documented?',
+      recommendedActions: ['Follow the cited runbook.'],
+      sources: [{ chunkId: chunkA.id, quote: 'Tenant A only', rank: 1, similarity: 0.9 }],
+      status: 'GENERATED',
+    });
+    expect(recommendation).toMatchObject({
+      status: 'GENERATED',
+      sources: [{ chunkId: chunkA.id }],
+    });
+
+    const visible = await executor.run(
+      { organizationId: organizationA, userId: userA },
+      (tx) =>
+        tx.$queryRaw<{ content: string; dimensions: number }[]>`
+        SELECT content, vector_dims(embedding)::integer AS dimensions FROM knowledge_chunks
+      `,
+    );
+    expect(visible).toEqual([{ content: 'Tenant A only', dimensions: 768 }]);
+    const crossTenantUpdate = await executor.run(
+      { organizationId: organizationA, userId: userA },
+      (tx) =>
+        tx.$executeRaw`UPDATE knowledge_chunks SET content = 'tampered' WHERE organization_id = ${organizationB}::uuid`,
+    );
+    expect(crossTenantUpdate).toBe(0);
   });
 
   it('enforces RLS and persistent idempotency for assets', async () => {

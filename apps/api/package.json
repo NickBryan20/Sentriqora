@@ -17,6 +17,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@aegisflow/ai": "workspace:*",
     "@aegisflow/contracts": "workspace:*",
     "@aegisflow/domain": "workspace:*",
     "@nestjs/common": "11.1.28",

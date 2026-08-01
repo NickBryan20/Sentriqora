@@ -117,14 +117,62 @@
       ],
       "title": "Entrega de notificaciones",
       "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 24 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (status) (rate(aegisflow_rag_queries_total[5m]))",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Consultas RAG por resultado",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 24 },
+      "id": 9,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(aegisflow_rag_query_duration_seconds_bucket[5m])))",
+          "legendFormat": "p95 RAG",
+          "refId": "A"
+        }
+      ],
+      "title": "Latencia RAG",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 24 },
+      "id": 10,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (outcome) (increase(aegisflow_knowledge_index_jobs_total[1h]))",
+          "legendFormat": "{{outcome}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Indexación de conocimiento (1 h)",
+      "type": "timeseries"
     }
   ],
   "schemaVersion": 41,
-  "tags": ["aegisflow", "phase-5", "incidents"],
+  "tags": ["aegisflow", "phase-6", "secure-rag"],
   "templating": { "list": [] },
   "time": { "from": "now-6h", "to": "now" },
   "timezone": "browser",
   "title": "AegisFlow Platform Overview",
   "uid": "aegisflow-platform-overview",
-  "version": 3
+  "version": 4
 }

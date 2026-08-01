@@ -1,7 +1,11 @@
 FROM node:24.18.0-bookworm-slim AS builder
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
+ENV DATABASE_URL=postgresql://build-only:build-only@127.0.0.1:5432/build-only
 WORKDIR /workspace
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends openssl \
+    && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/api/package.json ./apps/api/package.json
@@ -10,6 +14,7 @@ COPY apps/web/package.json ./apps/web/package.json
 COPY apps/worker/package.json ./apps/worker/package.json
 COPY packages/config-eslint/package.json ./packages/config-eslint/package.json
 COPY packages/config-typescript/package.json ./packages/config-typescript/package.json
+COPY packages/ai/package.json ./packages/ai/package.json
 COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/domain/package.json ./packages/domain/package.json
 COPY packages/testing/package.json ./packages/testing/package.json
@@ -19,6 +24,8 @@ COPY turbo.json tsconfig.json ./
 COPY apps/worker/*.json ./apps/worker/
 COPY apps/worker/src ./apps/worker/src
 COPY packages/config-typescript/*.json ./packages/config-typescript/
+COPY packages/ai/*.json ./packages/ai/
+COPY packages/ai/src ./packages/ai/src
 COPY packages/contracts/*.json ./packages/contracts/
 COPY packages/contracts/src ./packages/contracts/src
 COPY packages/domain/*.json ./packages/domain/

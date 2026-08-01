@@ -9,6 +9,7 @@ import { EventModule } from './events/event.module';
 import { HealthModule } from './health/health.module';
 import { IdentityModule } from './identity/identity.module';
 import { IncidentModule } from './incidents/incident.module';
+import { KnowledgeModule } from './knowledge/knowledge.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { ResourceModule } from './resources/resource.module';
 
@@ -52,6 +53,7 @@ const CORRELATION_ID_PATTERN = /^[a-zA-Z0-9._:-]{8,128}$/;
     EventModule,
     IdentityModule,
     IncidentModule,
+    KnowledgeModule,
     MetricsModule,
     ResourceModule,
   ],

@@ -45,6 +45,29 @@ export {
   updateConnectorSchema,
 } from './resources';
 export {
+  AI_RECOMMENDATION_STATUSES,
+  createKnowledgeDocumentSchema,
+  createKnowledgeVersionSchema,
+  KNOWLEDGE_CONTENT_TYPES,
+  KNOWLEDGE_DOCUMENT_STATUSES,
+  KNOWLEDGE_SOURCE_TYPES,
+  KNOWLEDGE_TRUST_LEVELS,
+  MAX_KNOWLEDGE_DOCUMENT_BYTES,
+  recommendationOutputSchema,
+  requestRecommendationSchema,
+} from './knowledge';
+export type {
+  AiRecommendationStatusValue,
+  CreateKnowledgeDocumentInput,
+  CreateKnowledgeVersionInput,
+  KnowledgeContentTypeValue,
+  KnowledgeDocumentStatusValue,
+  KnowledgeSourceTypeValue,
+  KnowledgeTrustLevelValue,
+  RecommendationOutput,
+  RequestRecommendationInput,
+} from './knowledge';
+export {
   adaptEventCandidate,
   canonicalEventSchema,
   ingressReceiptSchema,

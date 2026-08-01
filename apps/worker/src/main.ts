@@ -1,4 +1,5 @@
 import { Queue, Worker } from 'bullmq';
+import { createEmbeddingProvider } from '@aegisflow/ai';
 import pino from 'pino';
 
 import { redisConnectionFromUrl } from './redis-connection';
@@ -7,11 +8,14 @@ import { DetectionProcessor } from './detection.processor';
 import { startMetricsServer } from './detection.metrics';
 import { EventIngestionProcessor } from './event-ingestion.processor';
 import { IncidentProcessor } from './incident.processor';
+import { KnowledgeIndexProcessor } from './knowledge-index.processor';
+import { MinioKnowledgeReader } from './minio-knowledge-reader';
 import { LogEmailNotificationAdapter, NotificationProcessor } from './notification.processor';
 import {
   detectionJobSchema,
   incidentJobSchema,
   ingestionJobSchema,
+  knowledgeIndexJobSchema,
   notificationJobSchema,
   OutboxDispatcher,
 } from './outbox-dispatcher';
@@ -39,6 +43,7 @@ const ingestionQueue = new Queue('aegisflow-ingestion', { connection });
 const detectionQueue = new Queue('aegisflow-detection', { connection });
 const incidentQueue = new Queue('aegisflow-incidents', { connection });
 const notificationQueue = new Queue('aegisflow-notifications', { connection });
+const knowledgeQueue = new Queue('aegisflow-knowledge', { connection });
 const processor = new EventIngestionProcessor(
   pool,
   new PayloadCrypto(encryptionKey),
@@ -52,6 +57,27 @@ const notificationProcessor = new NotificationProcessor(
   new LogEmailNotificationAdapter(logger),
   logger,
 );
+const embeddingProvider = createEmbeddingProvider({
+  ollamaBaseUrl: process.env.OLLAMA_BASE_URL,
+  ollamaEmbeddingModel: process.env.OLLAMA_EMBEDDING_MODEL,
+  ollamaModel: process.env.OLLAMA_MODEL,
+  openAiApiKey: process.env.OPENAI_API_KEY,
+  openAiBaseUrl: process.env.OPENAI_BASE_URL,
+  openAiEmbeddingModel: process.env.OPENAI_EMBEDDING_MODEL,
+  openAiModel: process.env.OPENAI_MODEL,
+  provider: parseAiProvider(process.env.AI_PROVIDER),
+});
+const knowledgeProcessor = new KnowledgeIndexProcessor(
+  pool,
+  embeddingProvider,
+  new MinioKnowledgeReader(
+    process.env.MINIO_ENDPOINT ?? 'http://localhost:9000',
+    process.env.MINIO_BUCKET_KNOWLEDGE ?? 'aegisflow-knowledge',
+    process.env.MINIO_ACCESS_KEY ?? 'aegisflow_local',
+    process.env.MINIO_SECRET_KEY ?? 'change-this-local-minio-password',
+  ),
+  logger,
+);
 const outboxDispatcher = new OutboxDispatcher(
   pool,
   ingestionQueue,
@@ -59,6 +85,7 @@ const outboxDispatcher = new OutboxDispatcher(
   detectionQueue,
   incidentQueue,
   notificationQueue,
+  knowledgeQueue,
 );
 const systemWorker = new Worker<SystemHealthJob, SystemHealthResult>(
   'aegisflow-system',
@@ -85,6 +112,11 @@ const notificationWorker = new Worker(
   async (job) => notificationProcessor.process(notificationJobSchema.parse(job.data)),
   { connection, concurrency: 4 },
 );
+const knowledgeWorker = new Worker(
+  'aegisflow-knowledge',
+  async (job) => knowledgeProcessor.process(knowledgeIndexJobSchema.parse(job.data)),
+  { connection, concurrency: 2 },
+);
 outboxDispatcher.start();
 
 for (const worker of [
@@ -93,6 +125,7 @@ for (const worker of [
   detectionWorker,
   incidentWorker,
   notificationWorker,
+  knowledgeWorker,
 ]) {
   worker.on('completed', (job) => {
     logger.info({ jobId: job.id, queue: job.queueName }, 'Background job completed');
@@ -117,12 +150,14 @@ async function shutdown(signal: string): Promise<void> {
     detectionWorker.close(),
     incidentWorker.close(),
     notificationWorker.close(),
+    knowledgeWorker.close(),
   ]);
   await Promise.all([
     ingestionQueue.close(),
     detectionQueue.close(),
     incidentQueue.close(),
     notificationQueue.close(),
+    knowledgeQueue.close(),
   ]);
   await pool.end();
   await new Promise<void>((resolve, reject) =>
@@ -132,3 +167,9 @@ async function shutdown(signal: string): Promise<void> {
 
 process.once('SIGINT', () => void shutdown('SIGINT'));
 process.once('SIGTERM', () => void shutdown('SIGTERM'));
+
+function parseAiProvider(value: string | undefined): 'deterministic' | 'ollama' | 'openai' {
+  if (value === undefined || value === 'deterministic') return 'deterministic';
+  if (value === 'ollama' || value === 'openai') return value;
+  throw new Error('AI_PROVIDER must be deterministic, ollama or openai');
+}

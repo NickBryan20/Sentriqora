@@ -213,72 +213,116 @@ enum NotificationStatus {
   @@map("notification_status")
 }
 
+enum KnowledgeTrustLevel {
+  UNTRUSTED
+  INTERNAL
+  VERIFIED
+
+  @@map("knowledge_trust_level")
+}
+
+enum KnowledgeSourceType {
+  MANUAL
+  RUNBOOK
+  POLICY
+  VENDOR
+
+  @@map("knowledge_source_type")
+}
+
+enum KnowledgeDocumentStatus {
+  PENDING
+  INDEXING
+  INDEXED
+  REJECTED
+  DELETED
+
+  @@map("knowledge_document_status")
+}
+
+enum AIRecommendationStatus {
+  GENERATED
+  ABSTAINED
+  PROVIDER_UNAVAILABLE
+  INVALID_OUTPUT
+
+  @@map("ai_recommendation_status")
+}
+
 model Organization {
-  id                 String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name               String                  @db.VarChar(120)
-  slug               String                  @unique @db.VarChar(80)
-  createdAt          DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
-  memberships        Membership[]
-  roles              Role[]
-  invitations        Invitation[]
-  sessions           Session[]
-  refreshTokens      RefreshToken[]
-  mfaChallenges      MfaChallenge[]
-  assets             Asset[]
-  assetDependencies  AssetDependency[]
-  connectors         Connector[]
-  webhookSecrets     WebhookSecret[]
-  apiKeys            ApiKey[]
-  idempotencyRecords IdempotencyRecord[]
-  rawEvents          RawEvent[]
-  normalizedEvents   NormalizedEvent[]
-  detectionRules     DetectionRule[]
-  detectionVersions  DetectionRuleVersion[]
-  ruleExecutions     RuleExecution[]
-  anomalyScores      AnomalyScore[]
-  alerts             Alert[]
-  alertEvents        AlertEvent[]
-  correlationEdges   AlertCorrelationEdge[]
-  incidents          Incident[]
-  incidentAlerts     IncidentAlert[]
-  incidentEvents     IncidentEvent[]
-  incidentEvidence   IncidentEvidence[]
-  incidentComments   IncidentComment[]
-  incidentTimeline   IncidentTimelineEntry[]
-  slaPolicies        SlaPolicy[]
-  notifications      Notification[]
-  eventRecords       EventRecord[]
-  outboxEvents       OutboxEvent[]
+  id                    String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                  String                     @db.VarChar(120)
+  slug                  String                     @unique @db.VarChar(80)
+  createdAt             DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  memberships           Membership[]
+  roles                 Role[]
+  invitations           Invitation[]
+  sessions              Session[]
+  refreshTokens         RefreshToken[]
+  mfaChallenges         MfaChallenge[]
+  assets                Asset[]
+  assetDependencies     AssetDependency[]
+  connectors            Connector[]
+  webhookSecrets        WebhookSecret[]
+  apiKeys               ApiKey[]
+  idempotencyRecords    IdempotencyRecord[]
+  rawEvents             RawEvent[]
+  normalizedEvents      NormalizedEvent[]
+  detectionRules        DetectionRule[]
+  detectionVersions     DetectionRuleVersion[]
+  ruleExecutions        RuleExecution[]
+  anomalyScores         AnomalyScore[]
+  alerts                Alert[]
+  alertEvents           AlertEvent[]
+  correlationEdges      AlertCorrelationEdge[]
+  incidents             Incident[]
+  incidentAlerts        IncidentAlert[]
+  incidentEvents        IncidentEvent[]
+  incidentEvidence      IncidentEvidence[]
+  incidentComments      IncidentComment[]
+  incidentTimeline      IncidentTimelineEntry[]
+  slaPolicies           SlaPolicy[]
+  notifications         Notification[]
+  knowledgeDocuments    KnowledgeDocument[]
+  knowledgeVersions     KnowledgeDocumentVersion[]
+  knowledgeChunks       KnowledgeChunk[]
+  aiRecommendations     AIRecommendation[]
+  recommendationSources AIRecommendationSource[]
+  eventRecords          EventRecord[]
+  outboxEvents          OutboxEvent[]
 
   @@map("organizations")
 }
 
 model User {
-  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email                 String                  @db.VarChar(254)
-  normalizedEmail       String                  @unique @map("normalized_email") @db.VarChar(254)
-  displayName           String                  @map("display_name") @db.VarChar(120)
-  status                UserStatus              @default(ACTIVE)
-  createdAt             DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt             DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                    String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                 String                     @db.VarChar(254)
+  normalizedEmail       String                     @unique @map("normalized_email") @db.VarChar(254)
+  displayName           String                     @map("display_name") @db.VarChar(120)
+  status                UserStatus                 @default(ACTIVE)
+  createdAt             DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
   credential            Credential?
   mfaMethods            MfaMethod[]
   recoveryCodes         RecoveryCode[]
   memberships           Membership[]
   sessions              Session[]
   mfaChallenges         MfaChallenge[]
-  invitationsSent       Invitation[]            @relation("InvitationSender")
-  invitationsTaken      Invitation[]            @relation("InvitationAcceptor")
-  webhookSecretsCreated WebhookSecret[]         @relation("WebhookSecretCreator")
-  apiKeysCreated        ApiKey[]                @relation("ApiKeyCreator")
+  invitationsSent       Invitation[]               @relation("InvitationSender")
+  invitationsTaken      Invitation[]               @relation("InvitationAcceptor")
+  webhookSecretsCreated WebhookSecret[]            @relation("WebhookSecretCreator")
+  apiKeysCreated        ApiKey[]                   @relation("ApiKeyCreator")
   idempotencyRecords    IdempotencyRecord[]
-  eventRecords          EventRecord[]           @relation("EventRecordActor")
-  detectionRulesCreated DetectionRule[]         @relation("DetectionRuleCreator")
-  detectionRulesUpdated DetectionRule[]         @relation("DetectionRuleUpdater")
-  incidentEvidence      IncidentEvidence[]      @relation("IncidentEvidenceUploader")
-  incidentComments      IncidentComment[]       @relation("IncidentCommentAuthor")
-  incidentTimeline      IncidentTimelineEntry[] @relation("IncidentTimelineActor")
+  eventRecords          EventRecord[]              @relation("EventRecordActor")
+  detectionRulesCreated DetectionRule[]            @relation("DetectionRuleCreator")
+  detectionRulesUpdated DetectionRule[]            @relation("DetectionRuleUpdater")
+  incidentEvidence      IncidentEvidence[]         @relation("IncidentEvidenceUploader")
+  incidentComments      IncidentComment[]          @relation("IncidentCommentAuthor")
+  incidentTimeline      IncidentTimelineEntry[]    @relation("IncidentTimelineActor")
+  knowledgeDocuments    KnowledgeDocument[]        @relation("KnowledgeDocumentCreator")
+  knowledgeVersions     KnowledgeDocumentVersion[] @relation("KnowledgeVersionCreator")
+  aiRecommendations     AIRecommendation[]         @relation("AIRecommendationRequester")
 
   @@index([status], map: "users_status_idx")
   @@map("users")
@@ -845,6 +889,7 @@ model Incident {
   comments             IncidentComment[]
   timeline             IncidentTimelineEntry[]
   notifications        Notification[]
+  aiRecommendations    AIRecommendation[]
 
   @@unique([organizationId, key], map: "incidents_org_key_key")
   @@unique([id, organizationId], map: "incidents_id_org_key")
@@ -997,6 +1042,127 @@ model Notification {
   @@index([organizationId, recipientMembershipId, readAt, createdAt], map: "notifications_org_recipient_idx")
   @@index([status, createdAt], map: "notifications_status_idx")
   @@map("notifications")
+}
+
+model KnowledgeDocument {
+  id              String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String                     @map("organization_id") @db.Uuid
+  createdByUserId String                     @map("created_by_user_id") @db.Uuid
+  title           String                     @db.VarChar(180)
+  sourceType      KnowledgeSourceType        @map("source_type")
+  sourceUri       String?                    @map("source_uri") @db.VarChar(500)
+  trustLevel      KnowledgeTrustLevel        @map("trust_level")
+  status          KnowledgeDocumentStatus    @default(PENDING)
+  currentVersion  Int                        @default(1) @map("current_version")
+  rejectionReason String?                    @map("rejection_reason") @db.VarChar(240)
+  deletedAt       DateTime?                  @map("deleted_at") @db.Timestamptz(6)
+  createdAt       DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  organization    Organization               @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdBy       User                       @relation("KnowledgeDocumentCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  versions        KnowledgeDocumentVersion[]
+  chunks          KnowledgeChunk[]
+
+  @@unique([id, organizationId], map: "knowledge_documents_id_org_key")
+  @@index([organizationId, status, updatedAt, id], map: "knowledge_documents_org_cursor_idx")
+  @@index([organizationId, trustLevel, status], map: "knowledge_documents_org_trust_idx")
+  @@map("knowledge_documents")
+}
+
+model KnowledgeDocumentVersion {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String            @map("organization_id") @db.Uuid
+  documentId        String            @map("document_id") @db.Uuid
+  createdByUserId   String            @map("created_by_user_id") @db.Uuid
+  version           Int
+  objectKey         String            @unique @map("object_key") @db.VarChar(500)
+  contentType       String            @map("content_type") @db.VarChar(80)
+  sizeBytes         Int               @map("size_bytes")
+  sha256            String            @db.Char(64)
+  embeddingProvider String            @map("embedding_provider") @db.VarChar(40)
+  embeddingModel    String            @map("embedding_model") @db.VarChar(120)
+  indexedAt         DateTime?         @map("indexed_at") @db.Timestamptz(6)
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  document          KnowledgeDocument @relation(fields: [documentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  createdBy         User              @relation("KnowledgeVersionCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  chunks            KnowledgeChunk[]
+
+  @@unique([id, organizationId], map: "knowledge_versions_id_org_key")
+  @@unique([organizationId, documentId, version], map: "knowledge_versions_org_doc_version_key")
+  @@unique([organizationId, documentId, sha256], map: "knowledge_versions_org_doc_hash_key")
+  @@index([organizationId, documentId, createdAt], map: "knowledge_versions_org_doc_idx")
+  @@map("knowledge_document_versions")
+}
+
+model KnowledgeChunk {
+  id                    String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId        String                     @map("organization_id") @db.Uuid
+  documentId            String                     @map("document_id") @db.Uuid
+  versionId             String                     @map("version_id") @db.Uuid
+  ordinal               Int
+  content               String                     @db.Text
+  tokenEstimate         Int                        @map("token_estimate")
+  contentHash           String                     @map("content_hash") @db.Char(64)
+  embedding             Unsupported("vector(768)")
+  createdAt             DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  organization          Organization               @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  document              KnowledgeDocument          @relation(fields: [documentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  version               KnowledgeDocumentVersion   @relation(fields: [versionId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  recommendationSources AIRecommendationSource[]
+
+  @@unique([id, organizationId], map: "knowledge_chunks_id_org_key")
+  @@unique([organizationId, versionId, ordinal], map: "knowledge_chunks_org_version_ordinal_key")
+  @@index([organizationId, documentId, versionId], map: "knowledge_chunks_org_document_idx")
+  @@map("knowledge_chunks")
+}
+
+model AIRecommendation {
+  id                 String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId     String                   @map("organization_id") @db.Uuid
+  incidentId         String?                  @map("incident_id") @db.Uuid
+  requestedByUserId  String                   @map("requested_by_user_id") @db.Uuid
+  question           String                   @db.VarChar(2000)
+  answer             String                   @db.VarChar(6000)
+  recommendedActions Json                     @default("[]") @map("recommended_actions")
+  status             AIRecommendationStatus
+  confidence         Decimal                  @db.Decimal(6, 5)
+  provider           String                   @db.VarChar(40)
+  model              String                   @db.VarChar(120)
+  promptVersion      String                   @map("prompt_version") @db.VarChar(40)
+  providerRequestId  String?                  @map("provider_request_id") @db.VarChar(120)
+  latencyMs          Int                      @map("latency_ms")
+  inputTokens        Int                      @map("input_tokens")
+  outputTokens       Int                      @map("output_tokens")
+  estimatedCostUsd   Decimal                  @default(0) @map("estimated_cost_usd") @db.Decimal(12, 6)
+  createdAt          DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  organization       Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  incident           Incident?                @relation(fields: [incidentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  requestedBy        User                     @relation("AIRecommendationRequester", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  sources            AIRecommendationSource[]
+
+  @@unique([id, organizationId], map: "ai_recommendations_id_org_key")
+  @@index([organizationId, incidentId, createdAt], map: "ai_recommendations_org_incident_idx")
+  @@index([organizationId, requestedByUserId, createdAt], map: "ai_recommendations_org_requester_idx")
+  @@map("ai_recommendations")
+}
+
+model AIRecommendationSource {
+  organizationId   String           @map("organization_id") @db.Uuid
+  recommendationId String           @map("recommendation_id") @db.Uuid
+  chunkId          String           @map("chunk_id") @db.Uuid
+  rank             Int
+  similarity       Decimal          @db.Decimal(7, 6)
+  quote            String           @db.VarChar(1200)
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  recommendation   AIRecommendation @relation(fields: [recommendationId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  chunk            KnowledgeChunk   @relation(fields: [chunkId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@id([organizationId, recommendationId, chunkId])
+  @@unique([organizationId, recommendationId, rank], map: "ai_recommendation_sources_org_rank_key")
+  @@index([organizationId, chunkId], map: "ai_recommendation_sources_org_chunk_idx")
+  @@map("ai_recommendation_sources")
 }
 
 model WebhookSecret {

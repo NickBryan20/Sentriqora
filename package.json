@@ -28,6 +28,7 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:seed": "prisma db seed",
     "prisma:validate": "prisma validate",
+    "smoke:phase6": "tsx scripts/smoke-phase6.ts",
     "compose:config": "docker compose config --quiet",
     "compose:up": "docker compose up --build -d",
     "compose:down": "docker compose down"

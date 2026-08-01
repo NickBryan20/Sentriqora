@@ -33,6 +33,13 @@ export const notificationJobSchema = z.object({
   organizationId: z.uuid(),
 });
 export type NotificationJob = z.infer<typeof notificationJobSchema>;
+export const knowledgeIndexJobSchema = z.object({
+  documentId: z.uuid(),
+  organizationId: z.uuid(),
+  version: z.number().int().positive(),
+  versionId: z.uuid(),
+});
+export type KnowledgeIndexJob = z.infer<typeof knowledgeIndexJobSchema>;
 
 interface ClaimedOutboxEvent {
   event_type: string;
@@ -52,6 +59,7 @@ export class OutboxDispatcher {
     private readonly detectionQueue?: Queue<DetectionJob>,
     private readonly incidentQueue?: Queue<IncidentJob>,
     private readonly notificationQueue?: Queue<NotificationJob>,
+    private readonly knowledgeQueue?: Queue<KnowledgeIndexJob>,
   ) {}
 
   start(): void {
@@ -97,7 +105,7 @@ export class OutboxDispatcher {
           FROM outbox_events
           WHERE event_type IN (
             'raw_event.received.v1', 'normalized_event.batch_created.v1', 'alert.created.v1',
-            'incident.sla_due.v1', 'notification.requested.v1'
+            'incident.sla_due.v1', 'notification.requested.v1', 'knowledge.document_ready.v1'
           )
             AND status IN ('PENDING', 'PROCESSING')
             AND available_at <= now()
@@ -176,6 +184,15 @@ export class OutboxDispatcher {
         name: 'deliver-notification',
         payload,
         queue: this.notificationQueue ?? (this.ingestionQueue as unknown as Queue<NotificationJob>),
+      };
+    }
+    if (event.event_type === 'knowledge.document_ready.v1') {
+      const payload = knowledgeIndexJobSchema.parse(event.payload);
+      return {
+        jobId: `knowledge-${payload.versionId}`,
+        name: 'index-knowledge-document',
+        payload,
+        queue: this.knowledgeQueue ?? (this.ingestionQueue as unknown as Queue<KnowledgeIndexJob>),
       };
     }
     const payload = incidentJobSchema.parse(event.payload);

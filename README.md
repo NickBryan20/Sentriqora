@@ -4,8 +4,8 @@ AegisFlow es una plataforma web multi-organización para recolectar eventos tecn
 correlacionar señales, gestionar incidentes y asistir decisiones con evidencia. El proyecto se
 implementa por fases; actualmente contiene las fases verificables **Fase 0 — Bootstrap**,
 **Fase 1 — Identidad y multi-tenancy**, **Fase 2 — Activos y conectores**, **Fase 3 — Ingestión de
-eventos**, **Fase 4 — Detección, alertas y correlación** y **Fase 5 — Incidentes**. RAG y playbooks
-se incorporarán en el orden documentado en `Prompt_Maestro.md`.
+eventos**, **Fase 4 — Detección, alertas y correlación**, **Fase 5 — Incidentes** y **Fase 6 — RAG
+e IA segura**. La fase de playbooks se incorporará en el orden documentado en `Prompt_Maestro.md`.
 
 ## Estado de Fase 0
 
@@ -57,6 +57,15 @@ se incorporarán en el orden documentado en `Prompt_Maestro.md`.
 - Timeline auditable, concurrencia optimista, API cursor/SSE y grafo de alcance.
 - Consola web de respuesta y métricas Prometheus con paneles Grafana.
 
+## Estado de Fase 6
+
+- Documentos privados y versionados en MinIO, sanitización, clasificación de confianza y outbox.
+- Worker BullMQ idempotente, chunks acotados y embeddings de 768 dimensiones en pgvector/HNSW.
+- Puertos intercambiables con adaptadores OpenAI, Ollama y proveedor determinista sin credenciales.
+- Recuperación aislada por RLS, versión y modelo; confianza ponderada y abstención obligatoria.
+- Salida Zod, citas permitidas, bloqueo de HTML/URLs/comandos, trazabilidad de tokens y latencia.
+- Consola web de conocimiento y recomendaciones con fuentes renderizadas como texto seguro.
+
 ## Inicio rápido
 
 Requisitos: Node.js 24 LTS, pnpm 11, Git y Docker Compose v2.
@@ -94,6 +103,10 @@ Use `DATABASE_URL_LOCAL`, `REDIS_URL_LOCAL` y `MINIO_ENDPOINT_LOCAL` para proces
 Genere una identidad de prueba mediante `POST /api/v1/auth/register`; el repositorio no incluye
 contraseñas demo fijas.
 
+La configuración predeterminada `AI_PROVIDER=deterministic` funciona sin red ni clave. Para OpenAI,
+configure `AI_PROVIDER=openai` y `OPENAI_API_KEY`; para Ollama use `AI_PROVIDER=ollama` y asegure que
+los modelos declarados estén instalados. Nunca incluya la clave en Git ni la envíe al navegador.
+
 ## Calidad
 
 ```bash
@@ -117,8 +130,8 @@ AegisFlow is a multi-organization web platform for collecting technology events,
 signals, managing incidents, and assisting evidence-based decisions. Development follows explicit
 phases; the repository currently contains the verifiable **Phase 0 — Bootstrap**, **Phase 1 —
 Identity and multi-tenancy**, **Phase 2 — Assets and connectors**, **Phase 3 — Event ingestion**, and
-**Phase 4 — Detection, alerts, and correlation**, and **Phase 5 — Incidents**. RAG and playbooks
-will be added in the order defined by `Prompt_Maestro.md`.
+**Phase 4 — Detection, alerts, and correlation**, **Phase 5 — Incidents**, and **Phase 6 — Secure
+RAG and AI**. Playbooks will be added in the order defined by `Prompt_Maestro.md`.
 
 ### Phase 0 status
 
@@ -169,6 +182,15 @@ will be added in the order defined by `Prompt_Maestro.md`.
 - Private MinIO evidence with SHA-256, bounds, quarantine, inspection, and short-lived URLs.
 - Auditable timeline, optimistic concurrency, cursor/SSE API, and bounded scope graph.
 - Incident-response web console plus Prometheus metrics and Grafana panels.
+
+### Phase 6 status
+
+- Private, versioned MinIO documents with sanitization, trust classification, audit, and outbox.
+- Idempotent BullMQ indexing into bounded 768-dimensional pgvector/HNSW chunks.
+- Interchangeable OpenAI, Ollama, and credential-free deterministic provider adapters.
+- RLS-, version-, and model-scoped retrieval with weighted confidence and mandatory abstention.
+- Zod output validation, citation allowlist, malicious-output blocking, token/latency traceability.
+- Knowledge and recommendation console with safely rendered source evidence.
 
 ### Quick start
 
