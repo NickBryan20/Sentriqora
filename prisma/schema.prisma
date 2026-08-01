@@ -46,41 +46,112 @@ enum InvitationStatus {
   @@map("invitation_status")
 }
 
+enum AssetType {
+  APPLICATION
+  SERVER
+  API
+  DATABASE
+  REPOSITORY
+  OTHER
+
+  @@map("asset_type")
+}
+
+enum AssetCriticality {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+
+  @@map("asset_criticality")
+}
+
+enum AssetStatus {
+  ACTIVE
+  ARCHIVED
+
+  @@map("asset_status")
+}
+
+enum AssetDependencyKind {
+  DEPENDS_ON
+  HOSTED_ON
+  CONNECTS_TO
+  STORES_DATA_IN
+  USES
+
+  @@map("asset_dependency_kind")
+}
+
+enum ConnectorType {
+  WEBHOOK
+  REST_API
+  JSON_IMPORT
+  CSV_IMPORT
+  GITHUB
+  SIMULATOR
+
+  @@map("connector_type")
+}
+
+enum ConnectorStatus {
+  ACTIVE
+  DISABLED
+
+  @@map("connector_status")
+}
+
+enum IdempotencyStatus {
+  PROCESSING
+  COMPLETED
+
+  @@map("idempotency_status")
+}
+
 model Organization {
-  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name          String         @db.VarChar(120)
-  slug          String         @unique @db.VarChar(80)
-  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
-  memberships   Membership[]
-  roles         Role[]
-  invitations   Invitation[]
-  sessions      Session[]
-  refreshTokens RefreshToken[]
-  mfaChallenges MfaChallenge[]
-  eventRecords  EventRecord[]
-  outboxEvents  OutboxEvent[]
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name               String              @db.VarChar(120)
+  slug               String              @unique @db.VarChar(80)
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  memberships        Membership[]
+  roles              Role[]
+  invitations        Invitation[]
+  sessions           Session[]
+  refreshTokens      RefreshToken[]
+  mfaChallenges      MfaChallenge[]
+  assets             Asset[]
+  assetDependencies  AssetDependency[]
+  connectors         Connector[]
+  webhookSecrets     WebhookSecret[]
+  apiKeys            ApiKey[]
+  idempotencyRecords IdempotencyRecord[]
+  eventRecords       EventRecord[]
+  outboxEvents       OutboxEvent[]
 
   @@map("organizations")
 }
 
 model User {
-  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email            String         @db.VarChar(254)
-  normalizedEmail  String         @unique @map("normalized_email") @db.VarChar(254)
-  displayName      String         @map("display_name") @db.VarChar(120)
-  status           UserStatus     @default(ACTIVE)
-  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
-  credential       Credential?
-  mfaMethods       MfaMethod[]
-  recoveryCodes    RecoveryCode[]
-  memberships      Membership[]
-  sessions         Session[]
-  mfaChallenges    MfaChallenge[]
-  invitationsSent  Invitation[]   @relation("InvitationSender")
-  invitationsTaken Invitation[]   @relation("InvitationAcceptor")
-  eventRecords     EventRecord[]  @relation("EventRecordActor")
+  id                    String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                 String              @db.VarChar(254)
+  normalizedEmail       String              @unique @map("normalized_email") @db.VarChar(254)
+  displayName           String              @map("display_name") @db.VarChar(120)
+  status                UserStatus          @default(ACTIVE)
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  credential            Credential?
+  mfaMethods            MfaMethod[]
+  recoveryCodes         RecoveryCode[]
+  memberships           Membership[]
+  sessions              Session[]
+  mfaChallenges         MfaChallenge[]
+  invitationsSent       Invitation[]        @relation("InvitationSender")
+  invitationsTaken      Invitation[]        @relation("InvitationAcceptor")
+  webhookSecretsCreated WebhookSecret[]     @relation("WebhookSecretCreator")
+  apiKeysCreated        ApiKey[]            @relation("ApiKeyCreator")
+  idempotencyRecords    IdempotencyRecord[]
+  eventRecords          EventRecord[]       @relation("EventRecordActor")
 
   @@index([status], map: "users_status_idx")
   @@map("users")
@@ -143,6 +214,7 @@ model Membership {
   organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   user            User             @relation(fields: [userId], references: [id], onDelete: Restrict)
   membershipRoles MembershipRole[]
+  ownedAssets     Asset[]
 
   @@unique([organizationId, userId], map: "memberships_org_user_key")
   @@unique([id, organizationId], map: "memberships_id_org_key")
@@ -287,6 +359,143 @@ model MfaChallenge {
 
   @@index([organizationId, userId, expiresAt], map: "mfa_challenges_org_user_expiry_idx")
   @@map("mfa_challenges")
+}
+
+model Asset {
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId     String            @map("organization_id") @db.Uuid
+  ownerMembershipId  String?           @map("owner_membership_id") @db.Uuid
+  key                String            @db.VarChar(64)
+  name               String            @db.VarChar(120)
+  description        String            @default("") @db.VarChar(500)
+  type               AssetType
+  criticality        AssetCriticality
+  status             AssetStatus       @default(ACTIVE)
+  tags               String[]          @default([])
+  version            Int               @default(1)
+  archivedAt         DateTime?         @map("archived_at") @db.Timestamptz(6)
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  organization       Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  owner              Membership?       @relation(fields: [ownerMembershipId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  sourceDependencies AssetDependency[] @relation("AssetDependencySource")
+  targetDependencies AssetDependency[] @relation("AssetDependencyTarget")
+
+  @@unique([organizationId, key], map: "assets_org_key_key")
+  @@unique([id, organizationId], map: "assets_id_org_key")
+  @@index([organizationId, status, criticality], map: "assets_org_status_criticality_idx")
+  @@index([organizationId, ownerMembershipId], map: "assets_org_owner_idx")
+  @@map("assets")
+}
+
+model AssetDependency {
+  id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String              @map("organization_id") @db.Uuid
+  sourceAssetId  String              @map("source_asset_id") @db.Uuid
+  targetAssetId  String              @map("target_asset_id") @db.Uuid
+  kind           AssetDependencyKind
+  description    String              @default("") @db.VarChar(240)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  sourceAsset    Asset               @relation("AssetDependencySource", fields: [sourceAssetId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  targetAsset    Asset               @relation("AssetDependencyTarget", fields: [targetAssetId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([organizationId, sourceAssetId, targetAssetId, kind], map: "asset_dependencies_edge_key")
+  @@unique([id, organizationId], map: "asset_dependencies_id_org_key")
+  @@index([organizationId, targetAssetId], map: "asset_dependencies_org_target_idx")
+  @@map("asset_dependencies")
+}
+
+model Connector {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String          @map("organization_id") @db.Uuid
+  key            String          @db.VarChar(64)
+  name           String          @db.VarChar(120)
+  description    String          @default("") @db.VarChar(500)
+  type           ConnectorType
+  status         ConnectorStatus @default(ACTIVE)
+  configuration  Json            @default("{}")
+  version        Int             @default(1)
+  lastSeenAt     DateTime?       @map("last_seen_at") @db.Timestamptz(6)
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  webhookSecrets WebhookSecret[]
+  apiKeys        ApiKey[]
+
+  @@unique([organizationId, key], map: "connectors_org_key_key")
+  @@unique([id, organizationId], map: "connectors_id_org_key")
+  @@index([organizationId, status, type], map: "connectors_org_status_type_idx")
+  @@map("connectors")
+}
+
+model WebhookSecret {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String       @map("organization_id") @db.Uuid
+  connectorId       String       @map("connector_id") @db.Uuid
+  createdByUserId   String       @map("created_by_user_id") @db.Uuid
+  secretHash        String       @unique @map("secret_hash") @db.Char(64)
+  encryptedSecret   String       @map("encrypted_secret") @db.Text
+  encryptionIv      String       @map("encryption_iv") @db.VarChar(32)
+  encryptionAuthTag String       @map("encryption_auth_tag") @db.VarChar(32)
+  prefix            String       @db.VarChar(12)
+  validFrom         DateTime     @default(now()) @map("valid_from") @db.Timestamptz(6)
+  expiresAt         DateTime?    @map("expires_at") @db.Timestamptz(6)
+  revokedAt         DateTime?    @map("revoked_at") @db.Timestamptz(6)
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  connector         Connector    @relation(fields: [connectorId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  createdBy         User         @relation("WebhookSecretCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([id, organizationId], map: "webhook_secrets_id_org_key")
+  @@index([organizationId, connectorId, revokedAt, expiresAt], map: "webhook_secrets_active_idx")
+  @@map("webhook_secrets")
+}
+
+model ApiKey {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String       @map("organization_id") @db.Uuid
+  connectorId     String       @map("connector_id") @db.Uuid
+  createdByUserId String       @map("created_by_user_id") @db.Uuid
+  name            String       @db.VarChar(120)
+  prefix          String       @unique @db.VarChar(16)
+  tokenHash       String       @unique @map("token_hash") @db.Char(64)
+  scopes          String[]     @default([])
+  lastUsedAt      DateTime?    @map("last_used_at") @db.Timestamptz(6)
+  expiresAt       DateTime?    @map("expires_at") @db.Timestamptz(6)
+  revokedAt       DateTime?    @map("revoked_at") @db.Timestamptz(6)
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  connector       Connector    @relation(fields: [connectorId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  createdBy       User         @relation("ApiKeyCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([id, organizationId], map: "api_keys_id_org_key")
+  @@index([organizationId, connectorId, revokedAt], map: "api_keys_connector_active_idx")
+  @@map("api_keys")
+}
+
+model IdempotencyRecord {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String            @map("organization_id") @db.Uuid
+  actorUserId     String?           @map("actor_user_id") @db.Uuid
+  scope           String            @db.VarChar(120)
+  keyHash         String            @map("key_hash") @db.Char(64)
+  requestHash     String            @map("request_hash") @db.Char(64)
+  status          IdempotencyStatus @default(PROCESSING)
+  responseStatus  Int?              @map("response_status")
+  responsePayload Json?             @map("response_payload")
+  resourceType    String?           @map("resource_type") @db.VarChar(80)
+  resourceId      String?           @map("resource_id") @db.Uuid
+  expiresAt       DateTime          @map("expires_at") @db.Timestamptz(6)
+  completedAt     DateTime?         @map("completed_at") @db.Timestamptz(6)
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  actor           User?             @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, scope, keyHash], map: "idempotency_records_org_scope_key")
+  @@index([organizationId, expiresAt], map: "idempotency_records_expiry_idx")
+  @@map("idempotency_records")
 }
 
 model EventRecord {

@@ -13,6 +13,7 @@ import { type Environment, validateEnvironment } from '../src/configuration';
 import { PrismaIdentityRepository } from '../src/identity/infrastructure/prisma/prisma-identity.repository';
 import { PrismaService } from '../src/identity/infrastructure/prisma/prisma.service';
 import { TenantPrismaExecutor } from '../src/identity/infrastructure/prisma/tenant-prisma.executor';
+import { PrismaResourceRepository } from '../src/resources/infrastructure/prisma-resource.repository';
 
 const { Client } = pg;
 
@@ -23,6 +24,7 @@ describe('PostgreSQL tenant isolation', () => {
   let prisma: PrismaService;
   let executor: TenantPrismaExecutor;
   let repository: PrismaIdentityRepository;
+  let resourceRepository: PrismaResourceRepository;
 
   beforeAll(async () => {
     container = await new GenericContainer('pgvector/pgvector:0.8.1-pg17-bookworm')
@@ -53,12 +55,13 @@ describe('PostgreSQL tenant isolation', () => {
     prisma = new PrismaService(new ConfigService<Environment, true>(environment));
     executor = new TenantPrismaExecutor(prisma);
     repository = new PrismaIdentityRepository(executor);
+    resourceRepository = new PrismaResourceRepository(executor);
     const [{ AppModule }, { configureApplication }] = await Promise.all([
       import('../src/app.module.js'),
       import('../src/bootstrap.js'),
     ]);
     const moduleReference = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = moduleReference.createNestApplication();
+    app = moduleReference.createNestApplication({ rawBody: true });
     configureApplication(app);
     await app.init();
   });
@@ -150,6 +153,88 @@ describe('PostgreSQL tenant isolation', () => {
     ).rejects.toThrow();
   });
 
+  it('enforces RLS and persistent idempotency for assets', async () => {
+    const organizationA = randomUUID();
+    const organizationB = randomUUID();
+    const userA = randomUUID();
+    const userB = randomUUID();
+    const audit = { correlationId: randomUUID(), ipHash: 'b'.repeat(64) };
+    for (const identity of [
+      {
+        email: `asset-a-${randomUUID()}@example.test`,
+        organizationId: organizationA,
+        slug: `asset-a-${organizationA.slice(0, 8)}`,
+        userId: userA,
+      },
+      {
+        email: `asset-b-${randomUUID()}@example.test`,
+        organizationId: organizationB,
+        slug: `asset-b-${organizationB.slice(0, 8)}`,
+        userId: userB,
+      },
+    ]) {
+      await repository.register({
+        audit,
+        displayName: 'Asset Owner',
+        email: identity.email,
+        normalizedEmail: identity.email,
+        organizationId: identity.organizationId,
+        organizationName: 'Asset Tenant',
+        organizationSlug: identity.slug,
+        passwordHash: 'test-argon-hash',
+        userId: identity.userId,
+      });
+    }
+
+    const idempotency = {
+      actorUserId: userA,
+      keyHash: '1'.repeat(64),
+      requestHash: '2'.repeat(64),
+      scope: 'asset.create',
+    };
+    const input = {
+      asset: {
+        criticality: 'CRITICAL' as const,
+        description: 'Tenant A only',
+        key: 'tenant-a-api',
+        name: 'Tenant A API',
+        ownerMembershipId: null,
+        tags: ['api'],
+        type: 'API' as const,
+      },
+      audit,
+      idempotency,
+      organizationId: organizationA,
+      userId: userA,
+    };
+    const created = await resourceRepository.createAsset(input);
+    const replay = await resourceRepository.createAsset(input);
+    expect(created.replayed).toBe(false);
+    expect(replay).toMatchObject({ replayed: true, value: { id: created.value.id } });
+
+    const visibleToA = await executor.run(
+      { organizationId: organizationA, userId: userA },
+      (transaction) => transaction.asset.findMany({ select: { organizationId: true } }),
+    );
+    expect(visibleToA).toEqual([{ organizationId: organizationA }]);
+    const crossTenantUpdate = await executor.run(
+      { organizationId: organizationB, userId: userB },
+      (transaction) =>
+        transaction.asset.updateMany({
+          data: { name: 'Cross-tenant overwrite' },
+          where: { id: created.value.id },
+        }),
+    );
+    expect(crossTenantUpdate.count).toBe(0);
+
+    await expect(
+      resourceRepository.createAsset({
+        ...input,
+        idempotency: { ...idempotency, requestHash: '3'.repeat(64) },
+      }),
+    ).rejects.toMatchObject({ code: 'conflict', status: 409 });
+  });
+
   it('executes registration, MFA login, CSRF and tenant guards through HTTP', async () => {
     const agent = request.agent(app.getHttpServer());
     const password = 'Correct-Horse-Battery-2026!';
@@ -230,6 +315,106 @@ describe('PostgreSQL tenant isolation', () => {
       })
       .expect(200);
     csrfToken = extractCookie(verified.headers['set-cookie'], 'aegisflow_csrf');
+
+    const assetInput = {
+      criticality: 'CRITICAL',
+      description: 'Public API asset',
+      key: `payments-${randomUUID().slice(0, 8)}`,
+      name: 'Payments API',
+      tags: ['pci', 'api'],
+      type: 'API',
+    };
+    const assetIdempotencyKey = `asset:create:${randomUUID()}`;
+    const createdAsset = await agent
+      .post(`/api/v1/organizations/${organizationId}/assets`)
+      .set('x-csrf-token', csrfToken)
+      .set('idempotency-key', assetIdempotencyKey)
+      .send(assetInput)
+      .expect(201);
+    expect(createdAsset.headers['idempotency-replayed']).toBe('false');
+    const assetId = readStringProperty(createdAsset.body, 'id');
+    const replayedAsset = await agent
+      .post(`/api/v1/organizations/${organizationId}/assets`)
+      .set('x-csrf-token', csrfToken)
+      .set('idempotency-key', assetIdempotencyKey)
+      .send(assetInput)
+      .expect(201);
+    expect(replayedAsset.headers['idempotency-replayed']).toBe('true');
+    expect(readStringProperty(replayedAsset.body, 'id')).toBe(assetId);
+
+    const webhookConnector = await agent
+      .post(`/api/v1/organizations/${organizationId}/connectors`)
+      .set('x-csrf-token', csrfToken)
+      .set('idempotency-key', `connector:create:${randomUUID()}`)
+      .send({
+        configuration: {},
+        key: `webhook-${randomUUID().slice(0, 8)}`,
+        name: 'Webhook production',
+        type: 'WEBHOOK',
+      })
+      .expect(201);
+    const webhookConnectorId = readStringProperty(webhookConnector.body, 'id');
+    const secretResponse = await agent
+      .post(
+        `/api/v1/organizations/${organizationId}/connectors/${webhookConnectorId}/webhook-secrets/rotate`,
+      )
+      .set('x-csrf-token', csrfToken)
+      .set('idempotency-key', `secret:rotate:${randomUUID()}`)
+      .send({ gracePeriodSeconds: 0 })
+      .expect(201);
+    const webhookSecret = readStringProperty(secretResponse.body, 'secret');
+    expect(webhookSecret).toMatch(/^whsec_/u);
+    const webhookBody = { event: 'signed-phase-2-contract-check' };
+    const webhookTimestamp = Math.floor(Date.now() / 1_000).toString();
+    const webhookSignature = createHmac('sha256', webhookSecret)
+      .update(`${webhookTimestamp}.${JSON.stringify(webhookBody)}`)
+      .digest('hex');
+    await agent
+      .post(`/api/v1/ingress/organizations/${organizationId}/connectors/${webhookConnectorId}`)
+      .set('idempotency-key', `webhook:ingress:${randomUUID()}`)
+      .set('x-webhook-signature', `sha256=${webhookSignature}`)
+      .set('x-webhook-timestamp', webhookTimestamp)
+      .send(webhookBody)
+      .expect(202);
+
+    const simulatorConnector = await agent
+      .post(`/api/v1/organizations/${organizationId}/connectors`)
+      .set('x-csrf-token', csrfToken)
+      .set('idempotency-key', `connector:create:${randomUUID()}`)
+      .send({
+        configuration: { format: 'json' },
+        key: `simulator-${randomUUID().slice(0, 8)}`,
+        name: 'Event simulator',
+        type: 'SIMULATOR',
+      })
+      .expect(201);
+    const simulatorConnectorId = readStringProperty(simulatorConnector.body, 'id');
+    const apiKeyResponse = await agent
+      .post(`/api/v1/organizations/${organizationId}/connectors/${simulatorConnectorId}/api-keys`)
+      .set('x-csrf-token', csrfToken)
+      .set('idempotency-key', `api-key:create:${randomUUID()}`)
+      .send({ name: 'Integration test', scopes: ['connector.ingest'] })
+      .expect(201);
+    const apiKey = readStringProperty(apiKeyResponse.body, 'token');
+    const ingressBody = { event: 'phase-2-contract-check' };
+    const ingressIdempotencyKey = `ingress:receipt:${randomUUID()}`;
+    const ingress = await agent
+      .post(`/api/v1/ingress/organizations/${organizationId}/connectors/${simulatorConnectorId}`)
+      .set('x-api-key', apiKey)
+      .set('idempotency-key', ingressIdempotencyKey)
+      .send(ingressBody)
+      .expect(202);
+    expect(ingress.body).toMatchObject({ accepted: true });
+    const ingressReplay = await agent
+      .post(`/api/v1/ingress/organizations/${organizationId}/connectors/${simulatorConnectorId}`)
+      .set('x-api-key', apiKey)
+      .set('idempotency-key', ingressIdempotencyKey)
+      .send(ingressBody)
+      .expect(202);
+    expect(ingressReplay.headers['idempotency-replayed']).toBe('true');
+    expect(readStringProperty(ingressReplay.body, 'receiptId')).toBe(
+      readStringProperty(ingress.body, 'receiptId'),
+    );
 
     await agent.get(`/api/v1/organizations/${organizationId}/members`).expect(200);
     await agent.get(`/api/v1/organizations/${otherOrganizationId}/members`).expect(403);

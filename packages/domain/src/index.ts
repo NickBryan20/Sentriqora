@@ -19,3 +19,19 @@ export {
 } from './identity/identity-errors';
 export { OrganizationSlug } from './identity/organization-slug';
 export { PasswordPolicy } from './identity/password-policy';
+export { IdempotencyKey } from './resources/idempotency-key';
+export {
+  InvalidApiKeyPolicyError,
+  InvalidConnectorConfigurationError,
+  InvalidDependencyError,
+  InvalidIdempotencyKeyError,
+  InvalidResourceKeyError,
+  ResourceDomainError,
+} from './resources/resource-errors';
+export { ResourceKey } from './resources/resource-key';
+export { API_KEY_SCOPES, ResourcePolicy } from './resources/resource-policy';
+export type {
+  ApiKeyScope,
+  ConnectorConfiguration,
+  ConnectorConfigurationValue,
+} from './resources/resource-policy';

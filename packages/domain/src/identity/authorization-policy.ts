@@ -9,6 +9,13 @@ export const PERMISSION_KEYS = [
   'session.read',
   'session.revoke',
   'mfa.manage',
+  'asset.read',
+  'asset.manage',
+  'connector.read',
+  'connector.manage',
+  'connector.secret.rotate',
+  'api-key.read',
+  'api-key.manage',
 ] as const;
 
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
@@ -26,6 +33,13 @@ export const SYSTEM_ROLE_PERMISSIONS: Readonly<Record<string, readonly Permissio
     'session.read',
     'session.revoke',
     'mfa.manage',
+    'asset.read',
+    'asset.manage',
+    'connector.read',
+    'connector.manage',
+    'connector.secret.rotate',
+    'api-key.read',
+    'api-key.manage',
   ],
   analyst: [
     'organization.read',
@@ -34,6 +48,9 @@ export const SYSTEM_ROLE_PERMISSIONS: Readonly<Record<string, readonly Permissio
     'session.read',
     'session.revoke',
     'mfa.manage',
+    'asset.read',
+    'asset.manage',
+    'connector.read',
   ],
   viewer: [
     'organization.read',
@@ -42,6 +59,8 @@ export const SYSTEM_ROLE_PERMISSIONS: Readonly<Record<string, readonly Permissio
     'session.read',
     'session.revoke',
     'mfa.manage',
+    'asset.read',
+    'connector.read',
   ],
 };
 

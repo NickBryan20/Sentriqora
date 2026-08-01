@@ -55,5 +55,16 @@ import { SessionCookieWriter } from './presentation/http/session-cookies';
       }),
     },
   ],
+  exports: [
+    IdentityUseCases,
+    PrismaService,
+    TenantPrismaExecutor,
+    IDENTITY_SECURITY_PORT,
+    AccessTokenGuard,
+    CsrfGuard,
+    PermissionsGuard,
+    TenantGuard,
+    MfaVerifiedGuard,
+  ],
 })
 export class IdentityModule {}

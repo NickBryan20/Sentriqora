@@ -2,8 +2,9 @@
 
 AegisFlow es una plataforma web multi-organización para recolectar eventos tecnológicos,
 correlacionar señales, gestionar incidentes y asistir decisiones con evidencia. El proyecto se
-implementa por fases; actualmente contiene las fases verificables **Fase 0 — Bootstrap** y
-**Fase 1 — Identidad y multi-tenancy**. Ingesta, detección, incidentes, RAG y playbooks se
+implementa por fases; actualmente contiene las fases verificables **Fase 0 — Bootstrap**,
+**Fase 1 — Identidad y multi-tenancy** y **Fase 2 — Activos y conectores**. La normalización de
+eventos, detección, incidentes, RAG y playbooks se
 incorporarán en el orden documentado en `Prompt_Maestro.md`.
 
 ## Estado de Fase 0
@@ -22,6 +23,14 @@ incorporarán en el orden documentado en `Prompt_Maestro.md`.
 - Access cookie corta, refresh tokens rotativos con replay detection, CSRF y revocación global.
 - PostgreSQL RLS forzado mediante un rol de aplicación sin privilegios.
 - Pruebas Testcontainers de migración, flujo HTTP y fuga/modificación entre tenants.
+
+## Estado de Fase 2
+
+- Inventario de activos, criticidad, responsables, etiquetas y dependencias tipadas.
+- Conectores webhook, REST, JSON/CSV, GitHub y simulador con configuración no secreta.
+- Secretos webhook rotables y cifrados; API keys con scopes, expiración y revocación.
+- Idempotencia PostgreSQL con replay seguro, auditoría y outbox transaccional.
+- Entrada autenticada por HMAC/API key, límite Redis y aislamiento RLS forzado.
 
 ## Inicio rápido
 
@@ -82,7 +91,8 @@ reportar una vulnerabilidad.
 AegisFlow is a multi-organization web platform for collecting technology events, correlating
 signals, managing incidents, and assisting evidence-based decisions. Development follows explicit
 phases; the repository currently contains the verifiable **Phase 0 — Bootstrap** and **Phase 1 —
-Identity and multi-tenancy**. Ingestion, detection, incidents, RAG, and playbooks will be added in
+Identity and multi-tenancy**, and **Phase 2 — Assets and connectors**. Event normalization,
+detection, incidents, RAG, and playbooks will be added in
 the order defined by `Prompt_Maestro.md`.
 
 ### Phase 0 status
@@ -101,6 +111,14 @@ the order defined by `Prompt_Maestro.md`.
 - Short-lived access cookies, rotating refresh tokens with replay detection, CSRF, and global logout.
 - Forced PostgreSQL RLS under an unprivileged application role.
 - Testcontainers coverage for migrations, HTTP flows, and cross-tenant reads/writes.
+
+### Phase 2 status
+
+- Asset inventory, ownership, criticality, tags, and typed dependency edges.
+- Webhook, REST, JSON/CSV, GitHub, and simulator connector definitions.
+- Rotatable encrypted webhook secrets and scoped, expiring, revocable API keys.
+- PostgreSQL idempotency with safe replay, atomic audit records, and outbox events.
+- HMAC/API-key ingress, Redis rate limits, and forced tenant RLS.
 
 ### Quick start
 

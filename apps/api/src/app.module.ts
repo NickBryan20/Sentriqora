@@ -7,6 +7,7 @@ import { validateEnvironment } from './configuration';
 import { HealthModule } from './health/health.module';
 import { IdentityModule } from './identity/identity.module';
 import { MetricsModule } from './metrics/metrics.module';
+import { ResourceModule } from './resources/resource.module';
 
 const CORRELATION_ID_PATTERN = /^[a-zA-Z0-9._:-]{8,128}$/;
 
@@ -46,6 +47,7 @@ const CORRELATION_ID_PATTERN = /^[a-zA-Z0-9._:-]{8,128}$/;
     HealthModule,
     IdentityModule,
     MetricsModule,
+    ResourceModule,
   ],
 })
 export class AppModule {}

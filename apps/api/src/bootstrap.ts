@@ -10,7 +10,7 @@ import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
 import type { Environment } from './configuration';
 
 export async function createApplication(): Promise<INestApplication> {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create(AppModule, { bufferLogs: true, rawBody: true });
   configureApplication(app);
   return app;
 }
@@ -28,7 +28,15 @@ export function configureApplication(app: INestApplication): void {
   app.enableShutdownHooks();
   app.setGlobalPrefix('api/v1');
   app.enableCors({
-    allowedHeaders: ['Content-Type', 'Idempotency-Key', 'X-Correlation-Id', 'X-CSRF-Token'],
+    allowedHeaders: [
+      'Content-Type',
+      'Idempotency-Key',
+      'X-API-Key',
+      'X-Correlation-Id',
+      'X-CSRF-Token',
+      'X-Webhook-Signature',
+      'X-Webhook-Timestamp',
+    ],
     credentials: true,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     origin: allowedOrigins,

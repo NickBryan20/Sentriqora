@@ -7,7 +7,7 @@ import {
   type ArgumentsHost,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { IdentityDomainError } from '@aegisflow/domain';
+import { IdentityDomainError, ResourceDomainError } from '@aegisflow/domain';
 import { ZodError } from 'zod';
 
 import { ApplicationError } from '../../identity/application/application-error';
@@ -83,7 +83,11 @@ export class ProblemDetailsFilter implements ExceptionFilter {
   }
 
   private codeFor(exception: unknown): string | null {
-    if (exception instanceof ApplicationError || exception instanceof IdentityDomainError) {
+    if (
+      exception instanceof ApplicationError ||
+      exception instanceof IdentityDomainError ||
+      exception instanceof ResourceDomainError
+    ) {
       return exception.code;
     }
     if (exception instanceof ZodError) {
@@ -96,7 +100,11 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     if (exception instanceof ApplicationError) {
       return exception.status;
     }
-    if (exception instanceof IdentityDomainError || exception instanceof ZodError) {
+    if (
+      exception instanceof IdentityDomainError ||
+      exception instanceof ResourceDomainError ||
+      exception instanceof ZodError
+    ) {
       return HttpStatus.BAD_REQUEST;
     }
     return exception instanceof HttpException
@@ -105,7 +113,11 @@ export class ProblemDetailsFilter implements ExceptionFilter {
   }
 
   private publicDetail(exception: unknown): string {
-    if (exception instanceof ApplicationError || exception instanceof IdentityDomainError) {
+    if (
+      exception instanceof ApplicationError ||
+      exception instanceof IdentityDomainError ||
+      exception instanceof ResourceDomainError
+    ) {
       return exception.message;
     }
     if (exception instanceof ZodError) {
