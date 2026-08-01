@@ -15,6 +15,24 @@ export const detectionJobSchema = z.object({
   rawEventId: z.uuid(),
 });
 export type DetectionJob = z.infer<typeof detectionJobSchema>;
+export const alertIncidentJobSchema = z.object({
+  alertId: z.uuid(),
+  organizationId: z.uuid(),
+  riskScore: z.coerce.number().min(0).max(100),
+  severity: z.enum(['INFO', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
+});
+export const slaIncidentJobSchema = z.object({
+  incidentId: z.uuid(),
+  kind: z.enum(['RESPONSE', 'RESOLUTION']),
+  organizationId: z.uuid(),
+});
+export const incidentJobSchema = z.union([alertIncidentJobSchema, slaIncidentJobSchema]);
+export type IncidentJob = z.infer<typeof incidentJobSchema>;
+export const notificationJobSchema = z.object({
+  notificationId: z.uuid(),
+  organizationId: z.uuid(),
+});
+export type NotificationJob = z.infer<typeof notificationJobSchema>;
 
 interface ClaimedOutboxEvent {
   event_type: string;
@@ -32,6 +50,8 @@ export class OutboxDispatcher {
     private readonly ingestionQueue: Queue<IngestionJob>,
     private readonly logger: Logger,
     private readonly detectionQueue?: Queue<DetectionJob>,
+    private readonly incidentQueue?: Queue<IncidentJob>,
+    private readonly notificationQueue?: Queue<NotificationJob>,
   ) {}
 
   start(): void {
@@ -75,7 +95,10 @@ export class OutboxDispatcher {
         WITH candidates AS (
           SELECT id
           FROM outbox_events
-          WHERE event_type IN ('raw_event.received.v1', 'normalized_event.batch_created.v1')
+          WHERE event_type IN (
+            'raw_event.received.v1', 'normalized_event.batch_created.v1', 'alert.created.v1',
+            'incident.sla_due.v1', 'notification.requested.v1'
+          )
             AND status IN ('PENDING', 'PROCESSING')
             AND available_at <= now()
             AND retry_count < 10
@@ -104,17 +127,11 @@ export class OutboxDispatcher {
 
   private async publish(event: ClaimedOutboxEvent): Promise<void> {
     try {
-      const isIngestion = event.event_type === 'raw_event.received.v1';
-      const payload = isIngestion
-        ? ingestionJobSchema.parse(event.payload)
-        : detectionJobSchema.parse(event.payload);
-      const queue = isIngestion
-        ? this.ingestionQueue
-        : (this.detectionQueue ?? (this.ingestionQueue as unknown as Queue<DetectionJob>));
-      await queue.add(isIngestion ? 'normalize-raw-event' : 'detect-normalized-batch', payload, {
+      const route = this.route(event);
+      await route.queue.add(route.name, route.payload, {
         attempts: 5,
         backoff: { delay: 1_000, type: 'exponential' },
-        jobId: `${isIngestion ? 'ingestion' : 'detection'}-${payload.rawEventId}`,
+        jobId: route.jobId,
         removeOnComplete: { age: 3_600, count: 10_000 },
         removeOnFail: { age: 86_400, count: 10_000 },
       });
@@ -126,6 +143,51 @@ export class OutboxDispatcher {
         'Outbox event was not published',
       );
     }
+  }
+
+  private route(event: ClaimedOutboxEvent): {
+    jobId: string;
+    name: string;
+    payload: object;
+    queue: Queue;
+  } {
+    if (event.event_type === 'raw_event.received.v1') {
+      const payload = ingestionJobSchema.parse(event.payload);
+      return {
+        jobId: `ingestion-${payload.rawEventId}`,
+        name: 'normalize-raw-event',
+        payload,
+        queue: this.ingestionQueue,
+      };
+    }
+    if (event.event_type === 'normalized_event.batch_created.v1') {
+      const payload = detectionJobSchema.parse(event.payload);
+      return {
+        jobId: `detection-${payload.rawEventId}`,
+        name: 'detect-normalized-batch',
+        payload,
+        queue: this.detectionQueue ?? (this.ingestionQueue as unknown as Queue<DetectionJob>),
+      };
+    }
+    if (event.event_type === 'notification.requested.v1') {
+      const payload = notificationJobSchema.parse(event.payload);
+      return {
+        jobId: `notification-${payload.notificationId}`,
+        name: 'deliver-notification',
+        payload,
+        queue: this.notificationQueue ?? (this.ingestionQueue as unknown as Queue<NotificationJob>),
+      };
+    }
+    const payload = incidentJobSchema.parse(event.payload);
+    return {
+      jobId:
+        'alertId' in payload
+          ? `incident-alert-${payload.alertId}`
+          : `incident-sla-${payload.incidentId}-${payload.kind}`,
+      name: 'alertId' in payload ? 'create-incident-from-alert' : 'evaluate-incident-sla',
+      payload,
+      queue: this.incidentQueue ?? (this.ingestionQueue as unknown as Queue<IncidentJob>),
+    };
   }
 
   private async updatePublished(id: string): Promise<void> {

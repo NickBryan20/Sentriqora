@@ -4,7 +4,7 @@ import Link from 'next/link';
 const foundations = [
   ['Ingesta', 'Eventos validados, enmascarados y deduplicados'],
   ['Detección', 'Reglas versionadas, ventanas y z-score explicable'],
-  ['Correlación', 'Alertas agrupadas por señal y grafo de relaciones'],
+  ['Incidentes', 'Timeline, responsables, SLA y evidencias verificadas'],
   ['Seguridad', 'RLS, permisos finos y auditoría append-only'],
 ] as const;
 
@@ -22,7 +22,7 @@ export default function Home() {
               AEGISFLOW
             </span>
           </div>
-          <StatusBadge tone="healthy">Fase 4 · Detección activa</StatusBadge>
+          <StatusBadge tone="healthy">Fase 5 · Respuesta activa</StatusBadge>
         </header>
         <div className="max-w-3xl py-20">
           <p className="mb-5 text-sm font-semibold uppercase tracking-[0.3em] text-cyan-300">
@@ -35,12 +35,20 @@ export default function Home() {
             La plataforma recibe y normaliza eventos, ejecuta reglas determinísticas, calcula
             anomalías y correlaciona alertas con aislamiento estricto por organización.
           </p>
-          <Link
-            className="mt-8 inline-flex rounded-xl bg-cyan-300 px-5 py-3 font-semibold text-slate-950 focus:outline-none focus:ring-2 focus:ring-white"
-            href="/detections"
-          >
-            Abrir centro de detección
-          </Link>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link
+              className="inline-flex rounded-xl bg-cyan-300 px-5 py-3 font-semibold text-slate-950 focus:outline-none focus:ring-2 focus:ring-white"
+              href="/incidents"
+            >
+              Abrir centro de incidentes
+            </Link>
+            <Link
+              className="inline-flex rounded-xl border border-white/15 px-5 py-3 font-semibold text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-300"
+              href="/detections"
+            >
+              Ver detecciones
+            </Link>
+          </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {foundations.map(([title, description]) => (

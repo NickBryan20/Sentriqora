@@ -18,6 +18,21 @@ const batchDuration = new Histogram({
   help: 'Detection batch processing latency in seconds.',
   name: 'aegisflow_detection_batch_duration_seconds',
 });
+const incidents = new Counter({
+  help: 'Incidents created by severity and creation mode.',
+  labelNames: ['severity', 'automatic'] as const,
+  name: 'aegisflow_incidents_created_total',
+});
+const slaBreaches = new Counter({
+  help: 'Incident SLA breaches by target kind.',
+  labelNames: ['kind'] as const,
+  name: 'aegisflow_incident_sla_breaches_total',
+});
+const notificationDeliveries = new Counter({
+  help: 'Incident notification delivery attempts by channel and outcome.',
+  labelNames: ['channel', 'outcome'] as const,
+  name: 'aegisflow_notification_deliveries_total',
+});
 
 export function recordAlertCreated(severity: string): void {
   alerts.inc({ severity });
@@ -27,6 +42,15 @@ export function recordRuleExecution(matched: boolean): void {
 }
 export function observeDetectionBatch(seconds: number): void {
   batchDuration.observe(seconds);
+}
+export function recordIncidentCreated(severity: string, automatic: boolean): void {
+  incidents.inc({ automatic: String(automatic), severity });
+}
+export function recordSlaBreach(kind: string): void {
+  slaBreaches.inc({ kind });
+}
+export function recordNotificationDelivery(channel: string, outcome: string): void {
+  notificationDeliveries.inc({ channel, outcome });
 }
 
 export function startMetricsServer(port: number): Server {

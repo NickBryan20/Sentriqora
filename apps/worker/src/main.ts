@@ -6,7 +6,15 @@ import { createDatabasePool } from './database';
 import { DetectionProcessor } from './detection.processor';
 import { startMetricsServer } from './detection.metrics';
 import { EventIngestionProcessor } from './event-ingestion.processor';
-import { detectionJobSchema, ingestionJobSchema, OutboxDispatcher } from './outbox-dispatcher';
+import { IncidentProcessor } from './incident.processor';
+import { LogEmailNotificationAdapter, NotificationProcessor } from './notification.processor';
+import {
+  detectionJobSchema,
+  incidentJobSchema,
+  ingestionJobSchema,
+  notificationJobSchema,
+  OutboxDispatcher,
+} from './outbox-dispatcher';
 import { PayloadCrypto } from './payload-crypto';
 import {
   processSystemHealthJob,
@@ -29,6 +37,8 @@ const pool = createDatabasePool(databaseUrl);
 const metricsServer = startMetricsServer(Number(process.env.WORKER_METRICS_PORT ?? 9464));
 const ingestionQueue = new Queue('aegisflow-ingestion', { connection });
 const detectionQueue = new Queue('aegisflow-detection', { connection });
+const incidentQueue = new Queue('aegisflow-incidents', { connection });
+const notificationQueue = new Queue('aegisflow-notifications', { connection });
 const processor = new EventIngestionProcessor(
   pool,
   new PayloadCrypto(encryptionKey),
@@ -36,7 +46,20 @@ const processor = new EventIngestionProcessor(
   logger,
 );
 const detectionProcessor = new DetectionProcessor(pool, logger);
-const outboxDispatcher = new OutboxDispatcher(pool, ingestionQueue, logger, detectionQueue);
+const incidentProcessor = new IncidentProcessor(pool, logger);
+const notificationProcessor = new NotificationProcessor(
+  pool,
+  new LogEmailNotificationAdapter(logger),
+  logger,
+);
+const outboxDispatcher = new OutboxDispatcher(
+  pool,
+  ingestionQueue,
+  logger,
+  detectionQueue,
+  incidentQueue,
+  notificationQueue,
+);
 const systemWorker = new Worker<SystemHealthJob, SystemHealthResult>(
   'aegisflow-system',
   async (job) => processSystemHealthJob(job.data),
@@ -52,9 +75,25 @@ const detectionWorker = new Worker(
   async (job) => detectionProcessor.process(detectionJobSchema.parse(job.data)),
   { connection, concurrency: 8 },
 );
+const incidentWorker = new Worker(
+  'aegisflow-incidents',
+  async (job) => incidentProcessor.process(incidentJobSchema.parse(job.data)),
+  { connection, concurrency: 4 },
+);
+const notificationWorker = new Worker(
+  'aegisflow-notifications',
+  async (job) => notificationProcessor.process(notificationJobSchema.parse(job.data)),
+  { connection, concurrency: 4 },
+);
 outboxDispatcher.start();
 
-for (const worker of [systemWorker, ingestionWorker, detectionWorker]) {
+for (const worker of [
+  systemWorker,
+  ingestionWorker,
+  detectionWorker,
+  incidentWorker,
+  notificationWorker,
+]) {
   worker.on('completed', (job) => {
     logger.info({ jobId: job.id, queue: job.queueName }, 'Background job completed');
   });
@@ -72,8 +111,19 @@ for (const worker of [systemWorker, ingestionWorker, detectionWorker]) {
 async function shutdown(signal: string): Promise<void> {
   logger.info({ signal }, 'Stopping AegisFlow worker');
   await outboxDispatcher.close();
-  await Promise.all([systemWorker.close(), ingestionWorker.close(), detectionWorker.close()]);
-  await Promise.all([ingestionQueue.close(), detectionQueue.close()]);
+  await Promise.all([
+    systemWorker.close(),
+    ingestionWorker.close(),
+    detectionWorker.close(),
+    incidentWorker.close(),
+    notificationWorker.close(),
+  ]);
+  await Promise.all([
+    ingestionQueue.close(),
+    detectionQueue.close(),
+    incidentQueue.close(),
+    notificationQueue.close(),
+  ]);
   await pool.end();
   await new Promise<void>((resolve, reject) =>
     metricsServer.close((error) => (error === undefined ? resolve() : reject(error))),

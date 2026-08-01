@@ -155,12 +155,70 @@ enum CorrelationDimension {
   @@map("correlation_dimension")
 }
 
+enum IncidentStatus {
+  OPEN
+  TRIAGED
+  INVESTIGATING
+  CONTAINED
+  RESOLVED
+  CLOSED
+
+  @@map("incident_status")
+}
+
+enum IncidentPriority {
+  P1
+  P2
+  P3
+  P4
+
+  @@map("incident_priority")
+}
+
+enum IncidentTimelineType {
+  CREATED
+  ALERT_LINKED
+  ASSIGNED
+  STATUS_CHANGED
+  COMMENT_ADDED
+  EVIDENCE_ADDED
+  ANALYSIS_UPDATED
+  SLA_BREACHED
+  NOTIFICATION_SENT
+
+  @@map("incident_timeline_type")
+}
+
+enum EvidenceStatus {
+  PENDING_UPLOAD
+  QUARANTINED
+  AVAILABLE
+  REJECTED
+
+  @@map("evidence_status")
+}
+
+enum NotificationChannel {
+  INTERNAL
+  EMAIL
+
+  @@map("notification_channel")
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+
+  @@map("notification_status")
+}
+
 model Organization {
-  id                 String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name               String                 @db.VarChar(120)
-  slug               String                 @unique @db.VarChar(80)
-  createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                 String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name               String                  @db.VarChar(120)
+  slug               String                  @unique @db.VarChar(80)
+  createdAt          DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
   memberships        Membership[]
   roles              Role[]
   invitations        Invitation[]
@@ -182,6 +240,14 @@ model Organization {
   alerts             Alert[]
   alertEvents        AlertEvent[]
   correlationEdges   AlertCorrelationEdge[]
+  incidents          Incident[]
+  incidentAlerts     IncidentAlert[]
+  incidentEvents     IncidentEvent[]
+  incidentEvidence   IncidentEvidence[]
+  incidentComments   IncidentComment[]
+  incidentTimeline   IncidentTimelineEntry[]
+  slaPolicies        SlaPolicy[]
+  notifications      Notification[]
   eventRecords       EventRecord[]
   outboxEvents       OutboxEvent[]
 
@@ -189,27 +255,30 @@ model Organization {
 }
 
 model User {
-  id                    String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email                 String              @db.VarChar(254)
-  normalizedEmail       String              @unique @map("normalized_email") @db.VarChar(254)
-  displayName           String              @map("display_name") @db.VarChar(120)
-  status                UserStatus          @default(ACTIVE)
-  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                 String                  @db.VarChar(254)
+  normalizedEmail       String                  @unique @map("normalized_email") @db.VarChar(254)
+  displayName           String                  @map("display_name") @db.VarChar(120)
+  status                UserStatus              @default(ACTIVE)
+  createdAt             DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
   credential            Credential?
   mfaMethods            MfaMethod[]
   recoveryCodes         RecoveryCode[]
   memberships           Membership[]
   sessions              Session[]
   mfaChallenges         MfaChallenge[]
-  invitationsSent       Invitation[]        @relation("InvitationSender")
-  invitationsTaken      Invitation[]        @relation("InvitationAcceptor")
-  webhookSecretsCreated WebhookSecret[]     @relation("WebhookSecretCreator")
-  apiKeysCreated        ApiKey[]            @relation("ApiKeyCreator")
+  invitationsSent       Invitation[]            @relation("InvitationSender")
+  invitationsTaken      Invitation[]            @relation("InvitationAcceptor")
+  webhookSecretsCreated WebhookSecret[]         @relation("WebhookSecretCreator")
+  apiKeysCreated        ApiKey[]                @relation("ApiKeyCreator")
   idempotencyRecords    IdempotencyRecord[]
-  eventRecords          EventRecord[]       @relation("EventRecordActor")
-  detectionRulesCreated DetectionRule[]     @relation("DetectionRuleCreator")
-  detectionRulesUpdated DetectionRule[]     @relation("DetectionRuleUpdater")
+  eventRecords          EventRecord[]           @relation("EventRecordActor")
+  detectionRulesCreated DetectionRule[]         @relation("DetectionRuleCreator")
+  detectionRulesUpdated DetectionRule[]         @relation("DetectionRuleUpdater")
+  incidentEvidence      IncidentEvidence[]      @relation("IncidentEvidenceUploader")
+  incidentComments      IncidentComment[]       @relation("IncidentCommentAuthor")
+  incidentTimeline      IncidentTimelineEntry[] @relation("IncidentTimelineActor")
 
   @@index([status], map: "users_status_idx")
   @@map("users")
@@ -262,18 +331,20 @@ model RecoveryCode {
 }
 
 model Membership {
-  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizationId  String           @map("organization_id") @db.Uuid
-  userId          String           @map("user_id") @db.Uuid
-  status          MembershipStatus @default(ACTIVE)
-  joinedAt        DateTime         @default(now()) @map("joined_at") @db.Timestamptz(6)
-  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
-  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  user            User             @relation(fields: [userId], references: [id], onDelete: Restrict)
-  membershipRoles MembershipRole[]
-  ownedAssets     Asset[]
-  assignedAlerts  Alert[]
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String           @map("organization_id") @db.Uuid
+  userId            String           @map("user_id") @db.Uuid
+  status            MembershipStatus @default(ACTIVE)
+  joinedAt          DateTime         @default(now()) @map("joined_at") @db.Timestamptz(6)
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  organization      Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  user              User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  membershipRoles   MembershipRole[]
+  ownedAssets       Asset[]
+  assignedAlerts    Alert[]
+  assignedIncidents Incident[]
+  notifications     Notification[]
 
   @@unique([organizationId, userId], map: "memberships_org_user_key")
   @@unique([id, organizationId], map: "memberships_id_org_key")
@@ -441,6 +512,7 @@ model Asset {
   targetDependencies AssetDependency[] @relation("AssetDependencyTarget")
   normalizedEvents   NormalizedEvent[]
   alerts             Alert[]
+  incidents          Incident[]
 
   @@unique([organizationId, key], map: "assets_org_key_key")
   @@unique([id, organizationId], map: "assets_id_org_key")
@@ -557,6 +629,7 @@ model NormalizedEvent {
   ruleExecutions RuleExecution[]
   anomalyScores  AnomalyScore[]
   alertEvents    AlertEvent[]
+  incidentEvents IncidentEvent[]
 
   @@unique([rawEventId, recordIndex], map: "normalized_events_raw_record_key")
   @@unique([id, organizationId], map: "normalized_events_id_org_key")
@@ -692,6 +765,7 @@ model Alert {
   events               AlertEvent[]
   outgoingCorrelations AlertCorrelationEdge[] @relation("CorrelationSource")
   incomingCorrelations AlertCorrelationEdge[] @relation("CorrelationTarget")
+  incidentLinks        IncidentAlert[]
 
   @@unique([organizationId, deduplicationKey], map: "alerts_org_dedup_key")
   @@unique([id, organizationId], map: "alerts_id_org_key")
@@ -732,6 +806,197 @@ model AlertCorrelationEdge {
   @@index([organizationId, sourceAlertId, lastSeenAt], map: "alert_correlations_source_idx")
   @@index([organizationId, targetAlertId, lastSeenAt], map: "alert_correlations_target_idx")
   @@map("alert_correlation_edges")
+}
+
+model Incident {
+  id                   String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId       String                  @map("organization_id") @db.Uuid
+  primaryAssetId       String?                 @map("primary_asset_id") @db.Uuid
+  assignedMembershipId String?                 @map("assigned_membership_id") @db.Uuid
+  slaPolicyId          String?                 @map("sla_policy_id") @db.Uuid
+  key                  String                  @db.VarChar(40)
+  title                String                  @db.VarChar(200)
+  description          String                  @default("") @db.VarChar(4000)
+  severity             EventSeverity
+  priority             IncidentPriority
+  status               IncidentStatus          @default(OPEN)
+  riskScore            Decimal                 @map("risk_score") @db.Decimal(6, 3)
+  firstDetectedAt      DateTime                @map("first_detected_at") @db.Timestamptz(6)
+  responseDueAt        DateTime                @map("response_due_at") @db.Timestamptz(6)
+  resolutionDueAt      DateTime                @map("resolution_due_at") @db.Timestamptz(6)
+  firstRespondedAt     DateTime?               @map("first_responded_at") @db.Timestamptz(6)
+  containedAt          DateTime?               @map("contained_at") @db.Timestamptz(6)
+  resolvedAt           DateTime?               @map("resolved_at") @db.Timestamptz(6)
+  closedAt             DateTime?               @map("closed_at") @db.Timestamptz(6)
+  responseBreachedAt   DateTime?               @map("response_breached_at") @db.Timestamptz(6)
+  resolutionBreachedAt DateTime?               @map("resolution_breached_at") @db.Timestamptz(6)
+  rootCause            String?                 @map("root_cause") @db.VarChar(5000)
+  lessonsLearned       String?                 @map("lessons_learned") @db.VarChar(5000)
+  version              Int                     @default(1)
+  createdAt            DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+  organization         Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  primaryAsset         Asset?                  @relation(fields: [primaryAssetId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  assignedMembership   Membership?             @relation(fields: [assignedMembershipId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  slaPolicy            SlaPolicy?              @relation(fields: [slaPolicyId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  alerts               IncidentAlert[]
+  events               IncidentEvent[]
+  evidence             IncidentEvidence[]
+  comments             IncidentComment[]
+  timeline             IncidentTimelineEntry[]
+  notifications        Notification[]
+
+  @@unique([organizationId, key], map: "incidents_org_key_key")
+  @@unique([id, organizationId], map: "incidents_id_org_key")
+  @@index([organizationId, status, severity, updatedAt, id], map: "incidents_org_cursor_idx")
+  @@index([organizationId, assignedMembershipId, status], map: "incidents_org_assignee_idx")
+  @@index([organizationId, responseDueAt, firstRespondedAt], map: "incidents_org_response_sla_idx")
+  @@index([organizationId, resolutionDueAt, resolvedAt], map: "incidents_org_resolution_sla_idx")
+  @@map("incidents")
+}
+
+model IncidentAlert {
+  organizationId String       @map("organization_id") @db.Uuid
+  incidentId     String       @map("incident_id") @db.Uuid
+  alertId        String       @map("alert_id") @db.Uuid
+  linkedAt       DateTime     @default(now()) @map("linked_at") @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  incident       Incident     @relation(fields: [incidentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  alert          Alert        @relation(fields: [alertId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@id([organizationId, incidentId, alertId])
+  @@unique([organizationId, alertId], map: "incident_alerts_org_alert_key")
+  @@index([organizationId, incidentId, linkedAt], map: "incident_alerts_org_incident_idx")
+  @@map("incident_alerts")
+}
+
+model IncidentEvent {
+  organizationId    String          @map("organization_id") @db.Uuid
+  incidentId        String          @map("incident_id") @db.Uuid
+  normalizedEventId String          @map("normalized_event_id") @db.Uuid
+  linkedAt          DateTime        @default(now()) @map("linked_at") @db.Timestamptz(6)
+  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  incident          Incident        @relation(fields: [incidentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  normalizedEvent   NormalizedEvent @relation(fields: [normalizedEventId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@id([organizationId, incidentId, normalizedEventId])
+  @@index([organizationId, normalizedEventId], map: "incident_events_org_event_idx")
+  @@map("incident_events")
+}
+
+model IncidentEvidence {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String         @map("organization_id") @db.Uuid
+  incidentId       String         @map("incident_id") @db.Uuid
+  uploadedByUserId String         @map("uploaded_by_user_id") @db.Uuid
+  fileName         String         @map("file_name") @db.VarChar(180)
+  contentType      String         @map("content_type") @db.VarChar(120)
+  sizeBytes        Int            @map("size_bytes")
+  sha256           String         @db.Char(64)
+  objectKey        String         @unique @map("object_key") @db.VarChar(500)
+  status           EvidenceStatus @default(PENDING_UPLOAD)
+  rejectionReason  String?        @map("rejection_reason") @db.VarChar(240)
+  scannedAt        DateTime?      @map("scanned_at") @db.Timestamptz(6)
+  version          Int            @default(1)
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  organization     Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  incident         Incident       @relation(fields: [incidentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  uploadedBy       User           @relation("IncidentEvidenceUploader", fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([id, organizationId], map: "incident_evidence_id_org_key")
+  @@unique([organizationId, incidentId, sha256], map: "incident_evidence_org_incident_hash_key")
+  @@index([organizationId, incidentId, createdAt], map: "incident_evidence_org_incident_idx")
+  @@map("incident_evidence")
+}
+
+model IncidentComment {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  incidentId     String       @map("incident_id") @db.Uuid
+  authorUserId   String       @map("author_user_id") @db.Uuid
+  body           String       @db.VarChar(5000)
+  version        Int          @default(1)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  incident       Incident     @relation(fields: [incidentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  author         User         @relation("IncidentCommentAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+
+  @@unique([id, organizationId], map: "incident_comments_id_org_key")
+  @@index([organizationId, incidentId, createdAt], map: "incident_comments_org_incident_idx")
+  @@map("incident_comments")
+}
+
+model IncidentTimelineEntry {
+  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String               @map("organization_id") @db.Uuid
+  incidentId     String               @map("incident_id") @db.Uuid
+  actorUserId    String?              @map("actor_user_id") @db.Uuid
+  type           IncidentTimelineType
+  title          String               @db.VarChar(200)
+  detail         String               @default("") @db.VarChar(2000)
+  fromStatus     IncidentStatus?      @map("from_status")
+  toStatus       IncidentStatus?      @map("to_status")
+  metadata       Json                 @default("{}")
+  idempotencyKey String?              @map("idempotency_key") @db.Char(64)
+  occurredAt     DateTime             @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  incident       Incident             @relation(fields: [incidentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  actor          User?                @relation("IncidentTimelineActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, incidentId, idempotencyKey], map: "incident_timeline_org_idempotency_key")
+  @@index([organizationId, incidentId, occurredAt, id], map: "incident_timeline_org_incident_idx")
+  @@map("incident_timeline_entries")
+}
+
+model SlaPolicy {
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String        @map("organization_id") @db.Uuid
+  name              String        @db.VarChar(120)
+  severity          EventSeverity
+  responseMinutes   Int           @map("response_minutes")
+  resolutionMinutes Int           @map("resolution_minutes")
+  escalationMinutes Int           @map("escalation_minutes")
+  enabled           Boolean       @default(true)
+  version           Int           @default(1)
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  organization      Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  incidents         Incident[]
+
+  @@unique([organizationId, severity], map: "sla_policies_org_severity_key")
+  @@unique([id, organizationId], map: "sla_policies_id_org_key")
+  @@index([organizationId, enabled], map: "sla_policies_org_enabled_idx")
+  @@map("sla_policies")
+}
+
+model Notification {
+  id                    String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId        String              @map("organization_id") @db.Uuid
+  incidentId            String?             @map("incident_id") @db.Uuid
+  recipientMembershipId String?             @map("recipient_membership_id") @db.Uuid
+  channel               NotificationChannel
+  type                  String              @db.VarChar(80)
+  title                 String              @db.VarChar(200)
+  body                  String              @db.VarChar(2000)
+  status                NotificationStatus  @default(PENDING)
+  idempotencyKey        String              @map("idempotency_key") @db.Char(64)
+  attemptCount          Int                 @default(0) @map("attempt_count")
+  sentAt                DateTime?           @map("sent_at") @db.Timestamptz(6)
+  readAt                DateTime?           @map("read_at") @db.Timestamptz(6)
+  lastErrorCode         String?             @map("last_error_code") @db.VarChar(100)
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  organization          Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  incident              Incident?           @relation(fields: [incidentId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  recipientMembership   Membership?         @relation(fields: [recipientMembershipId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([organizationId, idempotencyKey], map: "notifications_org_idempotency_key")
+  @@unique([id, organizationId], map: "notifications_id_org_key")
+  @@index([organizationId, recipientMembershipId, readAt, createdAt], map: "notifications_org_recipient_idx")
+  @@index([status, createdAt], map: "notifications_status_idx")
+  @@map("notifications")
 }
 
 model WebhookSecret {

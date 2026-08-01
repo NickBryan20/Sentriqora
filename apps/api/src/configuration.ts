@@ -30,6 +30,13 @@ const environmentSchema = z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
       .default('info'),
     MINIO_ENDPOINT: z.url().default('http://localhost:9000'),
+    MINIO_PUBLIC_ENDPOINT: z.url().default('http://localhost:9000'),
+    MINIO_ACCESS_KEY: z.string().min(3).max(128).default('aegisflow_local'),
+    MINIO_SECRET_KEY: z.string().min(16).max(256).default('change-this-local-minio-password'),
+    MINIO_BUCKET_EVIDENCE: z
+      .string()
+      .regex(/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/u)
+      .default('aegisflow-evidence'),
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     OTEL_EXPORTER_OTLP_ENDPOINT: z.url().default('http://localhost:4318'),
     OTEL_SERVICE_NAME: z.string().min(1).default('aegisflow-api'),
@@ -46,7 +53,8 @@ const environmentSchema = z
     if (
       environment.AUTH_JWT_SECRET === developmentSecrets.jwt ||
       environment.AUTH_TOKEN_PEPPER === developmentSecrets.pepper ||
-      environment.AUTH_ENCRYPTION_KEY === developmentSecrets.encryption
+      environment.AUTH_ENCRYPTION_KEY === developmentSecrets.encryption ||
+      environment.MINIO_SECRET_KEY === 'change-this-local-minio-password'
     ) {
       context.addIssue({
         code: 'custom',

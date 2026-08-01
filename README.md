@@ -4,8 +4,8 @@ AegisFlow es una plataforma web multi-organización para recolectar eventos tecn
 correlacionar señales, gestionar incidentes y asistir decisiones con evidencia. El proyecto se
 implementa por fases; actualmente contiene las fases verificables **Fase 0 — Bootstrap**,
 **Fase 1 — Identidad y multi-tenancy**, **Fase 2 — Activos y conectores**, **Fase 3 — Ingestión de
-eventos** y **Fase 4 — Detección, alertas y correlación**. Incidentes, RAG y playbooks se incorporarán
-en el orden documentado en `Prompt_Maestro.md`.
+eventos**, **Fase 4 — Detección, alertas y correlación** y **Fase 5 — Incidentes**. RAG y playbooks
+se incorporarán en el orden documentado en `Prompt_Maestro.md`.
 
 ## Estado de Fase 0
 
@@ -47,6 +47,15 @@ en el orden documentado en `Prompt_Maestro.md`.
 - Worker BullMQ idempotente, alertas deduplicadas y correlación por señal enmascarada.
 - Estados, asignación, supresión temporal controlada, API cursor y snapshots SSE.
 - Consola web accesible, grafo acotado, métricas Prometheus y dashboard Grafana.
+
+## Estado de Fase 5
+
+- Incidentes automáticos para alertas críticas o riesgo alto, idempotentes y multi-tenant.
+- Estados y transiciones validadas, responsable, comentarios, causa raíz y lecciones aprendidas.
+- SLA de respuesta/resolución, evaluación diferida y notificaciones internas/correo desacopladas.
+- Evidencias privadas en MinIO con SHA-256, límites, cuarentena, inspección y URLs breves.
+- Timeline auditable, concurrencia optimista, API cursor/SSE y grafo de alcance.
+- Consola web de respuesta y métricas Prometheus con paneles Grafana.
 
 ## Inicio rápido
 
@@ -108,8 +117,8 @@ AegisFlow is a multi-organization web platform for collecting technology events,
 signals, managing incidents, and assisting evidence-based decisions. Development follows explicit
 phases; the repository currently contains the verifiable **Phase 0 — Bootstrap**, **Phase 1 —
 Identity and multi-tenancy**, **Phase 2 — Assets and connectors**, **Phase 3 — Event ingestion**, and
-**Phase 4 — Detection, alerts, and correlation**. Incidents, RAG, and playbooks will be added in the
-order defined by `Prompt_Maestro.md`.
+**Phase 4 — Detection, alerts, and correlation**, and **Phase 5 — Incidents**. RAG and playbooks
+will be added in the order defined by `Prompt_Maestro.md`.
 
 ### Phase 0 status
 
@@ -151,6 +160,15 @@ order defined by `Prompt_Maestro.md`.
 - Idempotent BullMQ worker, deduplicated alerts, and masked-signal correlation.
 - Alert states, assignment, bounded suppression, cursor API, and SSE snapshots.
 - Accessible web console, bounded graph, Prometheus metrics, and Grafana panels.
+
+### Phase 5 status
+
+- Idempotent, tenant-scoped incident creation from critical or high-risk alerts.
+- Validated lifecycle transitions, ownership, comments, root cause, and lessons learned.
+- Response/resolution SLAs, deferred evaluation, and decoupled internal/email notifications.
+- Private MinIO evidence with SHA-256, bounds, quarantine, inspection, and short-lived URLs.
+- Auditable timeline, optimistic concurrency, cursor/SSE API, and bounded scope graph.
+- Incident-response web console plus Prometheus metrics and Grafana panels.
 
 ### Quick start
 

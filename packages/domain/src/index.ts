@@ -53,3 +53,11 @@ export type {
   DetectionEvent,
   DetectionRuleDefinition,
 } from './detection/detection-policy';
+export { IncidentLifecyclePolicy, IncidentPolicyError } from './incidents/incident-policy';
+export type {
+  IncidentAnalysis,
+  IncidentPriorityValue,
+  IncidentSeverityValue,
+  IncidentSlaTarget,
+  IncidentStatusValue,
+} from './incidents/incident-policy';

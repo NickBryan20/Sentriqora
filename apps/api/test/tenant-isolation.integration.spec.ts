@@ -105,6 +105,12 @@ describe('PostgreSQL tenant isolation', () => {
     expect('identity' in registrationA).toBe(true);
     expect('identity' in registrationB).toBe(true);
 
+    const defaultSlaPolicies = await executor.run(
+      { organizationId: organizationA, userId: userA },
+      (transaction) => transaction.slaPolicy.count(),
+    );
+    expect(defaultSlaPolicies).toBe(5);
+
     const visibleOrganizations = await executor.run(
       { organizationId: organizationA, userId: userA },
       (transaction) =>

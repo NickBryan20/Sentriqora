@@ -8,6 +8,6 @@ describe('platform home page', () => {
     render(<Home />);
 
     expect(screen.getByRole('heading', { name: /AegisFlow/i })).toBeTruthy();
-    expect(screen.getByText(/Fase 4/i)).toBeTruthy();
+    expect(screen.getByText(/Fase 5/i)).toBeTruthy();
   });
 });

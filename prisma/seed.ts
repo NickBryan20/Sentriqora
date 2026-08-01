@@ -27,27 +27,27 @@ async function seed(): Promise<void> {
       `SELECT count(*)::text AS count FROM permissions`,
     );
     const permissionCount = Number(permissionResult.rows[0]?.count ?? 0);
-    if (permissionCount !== 22) {
-      throw new Error(`Expected 22 platform permissions through phase 4, found ${permissionCount}`);
+    if (permissionCount !== 27) {
+      throw new Error(`Expected 27 platform permissions through phase 5, found ${permissionCount}`);
     }
 
     const rlsResult = await client.query<{ count: string }>(
       `SELECT count(*)::text AS count
        FROM pg_class
        WHERE relname IN (
-         'detection_rules', 'detection_rule_versions', 'rule_executions', 'anomaly_scores',
-         'alerts', 'alert_events', 'alert_correlation_edges'
+         'incidents', 'incident_alerts', 'incident_events', 'incident_evidence',
+         'incident_comments', 'incident_timeline_entries', 'sla_policies', 'notifications'
        )
        AND relrowsecurity
        AND relforcerowsecurity`,
     );
     const rlsTableCount = Number(rlsResult.rows[0]?.count ?? 0);
-    if (rlsTableCount !== 7) {
-      throw new Error(`Expected 7 phase-4 tenant tables with forced RLS, found ${rlsTableCount}`);
+    if (rlsTableCount !== 8) {
+      throw new Error(`Expected 8 phase-5 tenant tables with forced RLS, found ${rlsTableCount}`);
     }
 
     process.stdout.write(
-      `${JSON.stringify({ extensions, permissionCount, phase: 4, rlsTableCount, status: 'verified' })}\n`,
+      `${JSON.stringify({ extensions, permissionCount, phase: 5, rlsTableCount, status: 'verified' })}\n`,
     );
   } finally {
     await client.end();

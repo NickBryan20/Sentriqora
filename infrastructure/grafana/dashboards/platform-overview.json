@@ -69,14 +69,62 @@
       ],
       "title": "Latencia de detección",
       "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (severity, automatic) (rate(aegisflow_incidents_created_total[5m]))",
+          "legendFormat": "{{severity}} auto={{automatic}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Incidentes creados",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (kind) (increase(aegisflow_incident_sla_breaches_total[1h]))",
+          "legendFormat": "{{kind}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Incumplimientos SLA (1 h)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (channel, outcome) (rate(aegisflow_notification_deliveries_total[5m]))",
+          "legendFormat": "{{channel}} {{outcome}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Entrega de notificaciones",
+      "type": "timeseries"
     }
   ],
   "schemaVersion": 41,
-  "tags": ["aegisflow", "phase-4", "detection"],
+  "tags": ["aegisflow", "phase-5", "incidents"],
   "templating": { "list": [] },
   "time": { "from": "now-6h", "to": "now" },
   "timezone": "browser",
   "title": "AegisFlow Platform Overview",
   "uid": "aegisflow-platform-overview",
-  "version": 2
+  "version": 3
 }

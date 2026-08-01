@@ -10,7 +10,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabasePool } from '../src/database';
 import { DetectionProcessor } from '../src/detection.processor';
 import { EventIngestionProcessor } from '../src/event-ingestion.processor';
-import { type DetectionJob, type IngestionJob, OutboxDispatcher } from '../src/outbox-dispatcher';
+import { IncidentProcessor } from '../src/incident.processor';
+import { LogEmailNotificationAdapter, NotificationProcessor } from '../src/notification.processor';
+import {
+  type DetectionJob,
+  type IncidentJob,
+  type IngestionJob,
+  type NotificationJob,
+  OutboxDispatcher,
+} from '../src/outbox-dispatcher';
 import { PayloadCrypto } from '../src/payload-crypto';
 import { redisConnectionFromUrl } from '../src/redis-connection';
 
@@ -125,7 +133,7 @@ describe('event ingestion pipeline', () => {
          id, organization_id, key, name, enabled, severity, threshold,
          window_seconds, deduplication_window_seconds, condition,
          correlation_dimensions, created_by_user_id, updated_by_user_id, updated_at
-       ) VALUES ($1, $2, 'authentication-failed', 'Authentication failures', true, 'HIGH', 1,
+       ) VALUES ($1, $2, 'authentication-failed', 'Authentication failures', true, 'CRITICAL', 1,
          300, 900, '{"eventTypes":["authentication.failed"],"attributes":[]}'::jsonb,
          ARRAY['FINGERPRINT']::correlation_dimension[], $3, $3, now())`,
       [ruleId, organizationId, userId],
@@ -134,7 +142,7 @@ describe('event ingestion pipeline', () => {
       `INSERT INTO detection_rule_versions (
          organization_id, rule_id, version, name, description, severity, threshold,
          window_seconds, deduplication_window_seconds, condition, correlation_dimensions
-       ) VALUES ($1, $2, 1, 'Authentication failures', '', 'HIGH', 1, 300, 900,
+       ) VALUES ($1, $2, 1, 'Authentication failures', '', 'CRITICAL', 1, 300, 900,
          '{"eventTypes":["authentication.failed"],"attributes":[]}'::jsonb,
          ARRAY['FINGERPRINT']::correlation_dimension[])`,
       [organizationId, ruleId],
@@ -146,8 +154,12 @@ describe('event ingestion pipeline', () => {
     );
     const queue = new Queue<IngestionJob>('aegisflow-ingestion', { connection });
     const detectionQueue = new Queue<DetectionJob>('aegisflow-detection', { connection });
+    const incidentQueue = new Queue<IncidentJob>('aegisflow-incidents', { connection });
+    const notificationQueue = new Queue<NotificationJob>('aegisflow-notifications', { connection });
     await queue.obliterate({ force: true });
     await detectionQueue.obliterate({ force: true });
+    await incidentQueue.obliterate({ force: true });
+    await notificationQueue.obliterate({ force: true });
     const logger = pino({ level: 'silent' });
     const processor = new EventIngestionProcessor(
       pool,
@@ -166,11 +178,40 @@ describe('event ingestion pipeline', () => {
       (job) => detectionProcessor.process(job.data),
       { connection, concurrency: 1 },
     );
-    let detectionFailure: Error | undefined;
+    const incidentProcessor = new IncidentProcessor(pool, logger);
+    const incidentWorker = new Worker<IncidentJob>(
+      'aegisflow-incidents',
+      (job) => incidentProcessor.process(job.data),
+      { connection, concurrency: 1 },
+    );
+    const notificationProcessor = new NotificationProcessor(
+      pool,
+      new LogEmailNotificationAdapter(logger),
+      logger,
+    );
+    const notificationWorker = new Worker<NotificationJob>(
+      'aegisflow-notifications',
+      (job) => notificationProcessor.process(job.data),
+      { connection, concurrency: 1 },
+    );
+    let workerFailure: Error | undefined;
     detectionWorker.on('failed', (_job, error) => {
-      detectionFailure = error;
+      workerFailure = error;
     });
-    const dispatcher = new OutboxDispatcher(pool, queue, logger, detectionQueue);
+    incidentWorker.on('failed', (_job, error) => {
+      workerFailure = error;
+    });
+    notificationWorker.on('failed', (_job, error) => {
+      workerFailure = error;
+    });
+    const dispatcher = new OutboxDispatcher(
+      pool,
+      queue,
+      logger,
+      detectionQueue,
+      incidentQueue,
+      notificationQueue,
+    );
     try {
       await dispatcher.poll();
       await waitFor(async () => {
@@ -235,7 +276,7 @@ describe('event ingestion pipeline', () => {
 
       await dispatcher.poll();
       await waitFor(async () => {
-        if (detectionFailure !== undefined) throw detectionFailure;
+        if (workerFailure !== undefined) throw workerFailure;
         const result = await admin.query<{ count: string }>(
           'SELECT count(*)::text AS count FROM alerts WHERE organization_id = $1',
           [organizationId],
@@ -260,7 +301,7 @@ describe('event ingestion pipeline', () => {
         anomaly_count: '1',
         execution_count: '1',
       });
-      expect(Number(detection.rows[0]?.risk_score)).toBeGreaterThanOrEqual(75);
+      expect(Number(detection.rows[0]?.risk_score)).toBeGreaterThanOrEqual(95);
 
       await detectionProcessor.process({ organizationId, rawEventId });
       const idempotent = await admin.query<{ count: string }>(
@@ -268,6 +309,68 @@ describe('event ingestion pipeline', () => {
         [organizationId],
       );
       expect(idempotent.rows[0]?.count).toBe('1');
+
+      const alert = await admin.query<{ id: string; risk_score: string; severity: string }>(
+        'SELECT id, risk_score::text, severity::text FROM alerts WHERE organization_id = $1',
+        [organizationId],
+      );
+      const alertRow = alert.rows[0];
+      expect(alertRow).toBeDefined();
+      if (alertRow === undefined) throw new Error('Expected alert was not created');
+
+      await dispatcher.poll();
+      await waitFor(async () => {
+        if (workerFailure !== undefined) throw workerFailure;
+        const result = await admin.query<{ count: string }>(
+          'SELECT count(*)::text AS count FROM incidents WHERE organization_id = $1',
+          [organizationId],
+        );
+        return result.rows[0]?.count === '1';
+      });
+      const incident = await admin.query<{
+        alert_count: string;
+        event_count: string;
+        incident_count: string;
+        notification_count: string;
+        priority: string;
+        timeline_count: string;
+      }>(
+        `SELECT
+           (SELECT count(*)::text FROM incidents WHERE organization_id = $1) AS incident_count,
+           (SELECT count(*)::text FROM incident_alerts WHERE organization_id = $1) AS alert_count,
+           (SELECT count(*)::text FROM incident_events WHERE organization_id = $1) AS event_count,
+           (SELECT count(*)::text FROM incident_timeline_entries WHERE organization_id = $1) AS timeline_count,
+           (SELECT count(*)::text FROM notifications WHERE organization_id = $1) AS notification_count,
+           (SELECT priority::text FROM incidents WHERE organization_id = $1 LIMIT 1) AS priority`,
+        [organizationId],
+      );
+      expect(incident.rows[0]).toMatchObject({
+        alert_count: '1',
+        event_count: '1',
+        incident_count: '1',
+        notification_count: '1',
+        priority: 'P1',
+      });
+      expect(Number(incident.rows[0]?.timeline_count)).toBeGreaterThanOrEqual(2);
+
+      await expect(
+        incidentProcessor.process({
+          alertId: alertRow.id,
+          organizationId,
+          riskScore: Number(alertRow.risk_score),
+          severity: 'CRITICAL',
+        }),
+      ).resolves.toMatchObject({ created: false });
+
+      await dispatcher.poll();
+      await waitFor(async () => {
+        if (workerFailure !== undefined) throw workerFailure;
+        const result = await admin.query<{ status: string }>(
+          'SELECT status::text FROM notifications WHERE organization_id = $1',
+          [organizationId],
+        );
+        return result.rows[0]?.status === 'SENT';
+      });
 
       await admin.query('BEGIN');
       await admin.query('SET LOCAL ROLE aegisflow_app');
@@ -277,14 +380,22 @@ describe('event ingestion pipeline', () => {
       const hiddenAlerts = await admin.query<{ count: string }>(
         'SELECT count(*)::text AS count FROM alerts',
       );
+      const hiddenIncidents = await admin.query<{ count: string }>(
+        'SELECT count(*)::text AS count FROM incidents',
+      );
       await admin.query('ROLLBACK');
       expect(hiddenAlerts.rows[0]?.count).toBe('0');
+      expect(hiddenIncidents.rows[0]?.count).toBe('0');
     } finally {
       await dispatcher.close();
       await worker.close();
       await detectionWorker.close();
+      await incidentWorker.close();
+      await notificationWorker.close();
       await queue.close();
       await detectionQueue.close();
+      await incidentQueue.close();
+      await notificationQueue.close();
       await pool.end();
       await admin.end();
     }

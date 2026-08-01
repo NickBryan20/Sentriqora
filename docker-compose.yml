@@ -40,6 +40,7 @@ services:
     image: minio/minio:RELEASE.2025-07-23T15-54-02Z
     command: ['server', '/data', '--console-address', ':9001']
     environment:
+      MINIO_API_CORS_ALLOW_ORIGIN: http://localhost:${PROXY_PORT:-8080}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-this-local-minio-password}
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-aegisflow_local}
     ports:
@@ -112,6 +113,10 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-200520}@postgres:5432/${POSTGRES_DB:-aegisflow_db}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       MINIO_ENDPOINT: http://minio:9000
+      MINIO_PUBLIC_ENDPOINT: http://localhost:${MINIO_PORT:-9000}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-aegisflow_local}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-change-this-local-minio-password}
+      MINIO_BUCKET_EVIDENCE: ${MINIO_BUCKET_EVIDENCE:-aegisflow-evidence}
       NODE_ENV: development
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       OTEL_SERVICE_NAME: aegisflow-api
@@ -150,7 +155,7 @@ services:
     environment:
       AUTH_ENCRYPTION_KEY: ${AUTH_ENCRYPTION_KEY:-ZGV2LW9ubHktYWVzLWtleS0zMi1ieXRlcy1sb25nISE=}
       AUTH_TOKEN_PEPPER: ${AUTH_TOKEN_PEPPER:-dev-only-token-pepper-change-before-production-2026}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-aegisflow}:${POSTGRES_PASSWORD:-aegisflow-local-only}@postgres:5432/${POSTGRES_DB:-aegisflow}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-200520}@postgres:5432/${POSTGRES_DB:-aegisflow_db}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       NODE_ENV: development
       REDIS_URL: redis://redis:6379

@@ -2,6 +2,7 @@ import { SYSTEM_ROLE_PERMISSIONS } from '@aegisflow/domain';
 import { Inject, Injectable } from '@nestjs/common';
 
 import {
+  EventSeverity,
   InvitationStatus,
   MembershipStatus,
   MfaMethodType,
@@ -42,6 +43,44 @@ const SYSTEM_ROLE_DETAILS: Readonly<Record<string, { description: string; name: 
   viewer: { description: 'Read-only organizational access.', name: 'Viewer' },
 };
 
+const DEFAULT_SLA_POLICIES = [
+  {
+    escalationMinutes: 10,
+    name: 'Critical response',
+    resolutionMinutes: 60,
+    responseMinutes: 5,
+    severity: EventSeverity.CRITICAL,
+  },
+  {
+    escalationMinutes: 30,
+    name: 'High response',
+    resolutionMinutes: 240,
+    responseMinutes: 15,
+    severity: EventSeverity.HIGH,
+  },
+  {
+    escalationMinutes: 60,
+    name: 'Medium response',
+    resolutionMinutes: 720,
+    responseMinutes: 30,
+    severity: EventSeverity.MEDIUM,
+  },
+  {
+    escalationMinutes: 240,
+    name: 'Low response',
+    resolutionMinutes: 1_440,
+    responseMinutes: 120,
+    severity: EventSeverity.LOW,
+  },
+  {
+    escalationMinutes: 480,
+    name: 'Informational response',
+    resolutionMinutes: 2_880,
+    responseMinutes: 240,
+    severity: EventSeverity.INFO,
+  },
+] as const;
+
 @Injectable()
 export class PrismaIdentityRepository implements IdentityRepositoryPort {
   constructor(@Inject(TenantPrismaExecutor) private readonly executor: TenantPrismaExecutor) {}
@@ -76,6 +115,7 @@ export class PrismaIdentityRepository implements IdentityRepositoryPort {
               slug: input.organizationSlug,
             },
           });
+          await this.createDefaultSlaPolicies(transaction, input.organizationId);
           await transaction.user.create({
             data: {
               displayName: input.displayName,
@@ -720,6 +760,7 @@ export class PrismaIdentityRepository implements IdentityRepositoryPort {
           await transaction.organization.create({
             data: { id: input.organizationId, name: input.name, slug: input.slug },
           });
+          await this.createDefaultSlaPolicies(transaction, input.organizationId);
           const ownerRoleId = await this.createSystemRoles(transaction, input.organizationId);
           const membership = await transaction.membership.create({
             data: { organizationId: input.organizationId, userId: input.ownerUserId },
@@ -1067,6 +1108,18 @@ export class PrismaIdentityRepository implements IdentityRepositoryPort {
       throw new Error('The owner role was not created');
     }
     return ownerRoleId;
+  }
+
+  private async createDefaultSlaPolicies(
+    transaction: Prisma.TransactionClient,
+    organizationId: string,
+  ): Promise<void> {
+    await transaction.slaPolicy.createMany({
+      data: DEFAULT_SLA_POLICIES.map((policy) => ({
+        ...policy,
+        organizationId,
+      })),
+    });
   }
 
   private async principalFor(
