@@ -154,6 +154,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       NODE_ENV: development
       REDIS_URL: redis://redis:6379
+      WORKER_METRICS_PORT: 9464
     depends_on:
       migrate:
         condition: service_completed_successfully

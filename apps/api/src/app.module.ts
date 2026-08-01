@@ -4,6 +4,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { randomUUID } from 'node:crypto';
 
 import { validateEnvironment } from './configuration';
+import { DetectionModule } from './detection/detection.module';
 import { EventModule } from './events/event.module';
 import { HealthModule } from './health/health.module';
 import { IdentityModule } from './identity/identity.module';
@@ -46,6 +47,7 @@ const CORRELATION_ID_PATTERN = /^[a-zA-Z0-9._:-]{8,128}$/;
       },
     }),
     HealthModule,
+    DetectionModule,
     EventModule,
     IdentityModule,
     MetricsModule,

@@ -3,8 +3,10 @@ import pino from 'pino';
 
 import { redisConnectionFromUrl } from './redis-connection';
 import { createDatabasePool } from './database';
+import { DetectionProcessor } from './detection.processor';
+import { startMetricsServer } from './detection.metrics';
 import { EventIngestionProcessor } from './event-ingestion.processor';
-import { ingestionJobSchema, OutboxDispatcher } from './outbox-dispatcher';
+import { detectionJobSchema, ingestionJobSchema, OutboxDispatcher } from './outbox-dispatcher';
 import { PayloadCrypto } from './payload-crypto';
 import {
   processSystemHealthJob,
@@ -24,14 +26,17 @@ if (databaseUrl === undefined || encryptionKey === undefined || tokenPepper === 
   throw new Error('DATABASE_URL, AUTH_ENCRYPTION_KEY and AUTH_TOKEN_PEPPER are required');
 }
 const pool = createDatabasePool(databaseUrl);
+const metricsServer = startMetricsServer(Number(process.env.WORKER_METRICS_PORT ?? 9464));
 const ingestionQueue = new Queue('aegisflow-ingestion', { connection });
+const detectionQueue = new Queue('aegisflow-detection', { connection });
 const processor = new EventIngestionProcessor(
   pool,
   new PayloadCrypto(encryptionKey),
   tokenPepper,
   logger,
 );
-const outboxDispatcher = new OutboxDispatcher(pool, ingestionQueue, logger);
+const detectionProcessor = new DetectionProcessor(pool, logger);
+const outboxDispatcher = new OutboxDispatcher(pool, ingestionQueue, logger, detectionQueue);
 const systemWorker = new Worker<SystemHealthJob, SystemHealthResult>(
   'aegisflow-system',
   async (job) => processSystemHealthJob(job.data),
@@ -42,9 +47,14 @@ const ingestionWorker = new Worker(
   async (job) => processor.process(ingestionJobSchema.parse(job.data)),
   { connection, concurrency: 8 },
 );
+const detectionWorker = new Worker(
+  'aegisflow-detection',
+  async (job) => detectionProcessor.process(detectionJobSchema.parse(job.data)),
+  { connection, concurrency: 8 },
+);
 outboxDispatcher.start();
 
-for (const worker of [systemWorker, ingestionWorker]) {
+for (const worker of [systemWorker, ingestionWorker, detectionWorker]) {
   worker.on('completed', (job) => {
     logger.info({ jobId: job.id, queue: job.queueName }, 'Background job completed');
   });
@@ -62,9 +72,12 @@ for (const worker of [systemWorker, ingestionWorker]) {
 async function shutdown(signal: string): Promise<void> {
   logger.info({ signal }, 'Stopping AegisFlow worker');
   await outboxDispatcher.close();
-  await Promise.all([systemWorker.close(), ingestionWorker.close()]);
-  await ingestionQueue.close();
+  await Promise.all([systemWorker.close(), ingestionWorker.close(), detectionWorker.close()]);
+  await Promise.all([ingestionQueue.close(), detectionQueue.close()]);
   await pool.end();
+  await new Promise<void>((resolve, reject) =>
+    metricsServer.close((error) => (error === undefined ? resolve() : reject(error))),
+  );
 }
 
 process.once('SIGINT', () => void shutdown('SIGINT'));

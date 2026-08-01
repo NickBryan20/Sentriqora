@@ -8,8 +8,9 @@ import { GenericContainer, type StartedTestContainer, Wait } from 'testcontainer
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createDatabasePool } from '../src/database';
+import { DetectionProcessor } from '../src/detection.processor';
 import { EventIngestionProcessor } from '../src/event-ingestion.processor';
-import { type IngestionJob, OutboxDispatcher } from '../src/outbox-dispatcher';
+import { type DetectionJob, type IngestionJob, OutboxDispatcher } from '../src/outbox-dispatcher';
 import { PayloadCrypto } from '../src/payload-crypto';
 import { redisConnectionFromUrl } from '../src/redis-connection';
 
@@ -50,6 +51,8 @@ describe('event ingestion pipeline', () => {
     const otherOrganizationId = randomUUID();
     const connectorId = randomUUID();
     const rawEventId = randomUUID();
+    const userId = randomUUID();
+    const ruleId = randomUUID();
     const correlationId = `worker-${randomUUID()}`;
     const encryptionKey = randomBytes(32);
     const text = JSON.stringify({
@@ -77,6 +80,11 @@ describe('event ingestion pipeline', () => {
         otherOrganizationId,
         `other-${otherOrganizationId.slice(0, 8)}`,
       ],
+    );
+    await admin.query(
+      `INSERT INTO users (id, email, normalized_email, display_name)
+       VALUES ($1, $2, $2, 'Detection Owner')`,
+      [userId, `detection-${userId}@example.test`],
     );
     await admin.query(
       `INSERT INTO connectors (id, organization_id, key, name, type)
@@ -112,13 +120,34 @@ describe('event ingestion pipeline', () => {
                             'rawEventId', $2::uuid::text, 'correlationId', $4::text), now())`,
       [organizationId, rawEventId, connectorId, correlationId],
     );
+    await admin.query(
+      `INSERT INTO detection_rules (
+         id, organization_id, key, name, enabled, severity, threshold,
+         window_seconds, deduplication_window_seconds, condition,
+         correlation_dimensions, created_by_user_id, updated_by_user_id, updated_at
+       ) VALUES ($1, $2, 'authentication-failed', 'Authentication failures', true, 'HIGH', 1,
+         300, 900, '{"eventTypes":["authentication.failed"],"attributes":[]}'::jsonb,
+         ARRAY['FINGERPRINT']::correlation_dimension[], $3, $3, now())`,
+      [ruleId, organizationId, userId],
+    );
+    await admin.query(
+      `INSERT INTO detection_rule_versions (
+         organization_id, rule_id, version, name, description, severity, threshold,
+         window_seconds, deduplication_window_seconds, condition, correlation_dimensions
+       ) VALUES ($1, $2, 1, 'Authentication failures', '', 'HIGH', 1, 300, 900,
+         '{"eventTypes":["authentication.failed"],"attributes":[]}'::jsonb,
+         ARRAY['FINGERPRINT']::correlation_dimension[])`,
+      [organizationId, ruleId],
+    );
 
     const pool = createDatabasePool(databaseUrl);
     const connection = redisConnectionFromUrl(
       `redis://${reachableHost(redisContainer)}:${redisContainer.getMappedPort(6379)}`,
     );
     const queue = new Queue<IngestionJob>('aegisflow-ingestion', { connection });
+    const detectionQueue = new Queue<DetectionJob>('aegisflow-detection', { connection });
     await queue.obliterate({ force: true });
+    await detectionQueue.obliterate({ force: true });
     const logger = pino({ level: 'silent' });
     const processor = new EventIngestionProcessor(
       pool,
@@ -131,7 +160,17 @@ describe('event ingestion pipeline', () => {
       (job) => processor.process(job.data),
       { connection, concurrency: 1 },
     );
-    const dispatcher = new OutboxDispatcher(pool, queue, logger);
+    const detectionProcessor = new DetectionProcessor(pool, logger);
+    const detectionWorker = new Worker<DetectionJob>(
+      'aegisflow-detection',
+      (job) => detectionProcessor.process(job.data),
+      { connection, concurrency: 1 },
+    );
+    let detectionFailure: Error | undefined;
+    detectionWorker.on('failed', (_job, error) => {
+      detectionFailure = error;
+    });
+    const dispatcher = new OutboxDispatcher(pool, queue, logger, detectionQueue);
     try {
       await dispatcher.poll();
       await waitFor(async () => {
@@ -184,10 +223,68 @@ describe('event ingestion pipeline', () => {
         [rawEventId],
       );
       expect(outbox.rows[0]?.status).toBe('PUBLISHED');
+
+      // PostgreSQL retains microseconds while JavaScript Date only retains milliseconds.
+      // This proves the detection window uses the authoritative database timestamp.
+      await admin.query(
+        `UPDATE normalized_events
+         SET occurred_at = date_trunc('milliseconds', occurred_at) + interval '0.999 milliseconds'
+         WHERE organization_id = $1 AND raw_event_id = $2`,
+        [organizationId, rawEventId],
+      );
+
+      await dispatcher.poll();
+      await waitFor(async () => {
+        if (detectionFailure !== undefined) throw detectionFailure;
+        const result = await admin.query<{ count: string }>(
+          'SELECT count(*)::text AS count FROM alerts WHERE organization_id = $1',
+          [organizationId],
+        );
+        return result.rows[0]?.count === '1';
+      });
+      const detection = await admin.query<{
+        alert_count: string;
+        anomaly_count: string;
+        execution_count: string;
+        risk_score: string;
+      }>(
+        `SELECT
+           (SELECT count(*)::text FROM alerts WHERE organization_id = $1) AS alert_count,
+           (SELECT count(*)::text FROM anomaly_scores WHERE organization_id = $1) AS anomaly_count,
+           (SELECT count(*)::text FROM rule_executions WHERE organization_id = $1) AS execution_count,
+           (SELECT risk_score::text FROM alerts WHERE organization_id = $1 LIMIT 1) AS risk_score`,
+        [organizationId],
+      );
+      expect(detection.rows[0]).toMatchObject({
+        alert_count: '1',
+        anomaly_count: '1',
+        execution_count: '1',
+      });
+      expect(Number(detection.rows[0]?.risk_score)).toBeGreaterThanOrEqual(75);
+
+      await detectionProcessor.process({ organizationId, rawEventId });
+      const idempotent = await admin.query<{ count: string }>(
+        'SELECT count(*)::text AS count FROM rule_executions WHERE organization_id = $1',
+        [organizationId],
+      );
+      expect(idempotent.rows[0]?.count).toBe('1');
+
+      await admin.query('BEGIN');
+      await admin.query('SET LOCAL ROLE aegisflow_app');
+      await admin.query(`SELECT set_config('app.current_organization_id', $1, true)`, [
+        otherOrganizationId,
+      ]);
+      const hiddenAlerts = await admin.query<{ count: string }>(
+        'SELECT count(*)::text AS count FROM alerts',
+      );
+      await admin.query('ROLLBACK');
+      expect(hiddenAlerts.rows[0]?.count).toBe('0');
     } finally {
       await dispatcher.close();
       await worker.close();
+      await detectionWorker.close();
       await queue.close();
+      await detectionQueue.close();
       await pool.end();
       await admin.end();
     }

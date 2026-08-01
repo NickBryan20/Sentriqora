@@ -59,7 +59,9 @@ describe('NodeIdentitySecurityAdapter', () => {
     const [, payload] = token.split('.');
     const noneToken = `${Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')}.${payload}.`;
     expect(() => adapter.verifyAccessToken(noneToken)).toThrow();
-    expect(() => adapter.verifyAccessToken(`${token.slice(0, -1)}x`)).toThrow();
+    const [header, body, signature = ''] = token.split('.');
+    const tamperedSignature = `${signature.startsWith('a') ? 'b' : 'a'}${signature.slice(1)}`;
+    expect(() => adapter.verifyAccessToken(`${header}.${body}.${tamperedSignature}`)).toThrow();
   });
 
   it('stores only stable hashes for opaque and recovery tokens', () => {

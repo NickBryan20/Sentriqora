@@ -10,8 +10,14 @@ export const ingestionJobSchema = z.object({
   rawEventId: z.uuid(),
 });
 export type IngestionJob = z.infer<typeof ingestionJobSchema>;
+export const detectionJobSchema = z.object({
+  organizationId: z.uuid(),
+  rawEventId: z.uuid(),
+});
+export type DetectionJob = z.infer<typeof detectionJobSchema>;
 
 interface ClaimedOutboxEvent {
+  event_type: string;
   id: string;
   payload: unknown;
   retry_count: number;
@@ -23,8 +29,9 @@ export class OutboxDispatcher {
 
   constructor(
     private readonly pool: Pool,
-    private readonly queue: Queue<IngestionJob>,
+    private readonly ingestionQueue: Queue<IngestionJob>,
     private readonly logger: Logger,
+    private readonly detectionQueue?: Queue<DetectionJob>,
   ) {}
 
   start(): void {
@@ -68,7 +75,7 @@ export class OutboxDispatcher {
         WITH candidates AS (
           SELECT id
           FROM outbox_events
-          WHERE event_type = 'raw_event.received.v1'
+          WHERE event_type IN ('raw_event.received.v1', 'normalized_event.batch_created.v1')
             AND status IN ('PENDING', 'PROCESSING')
             AND available_at <= now()
             AND retry_count < 10
@@ -83,7 +90,7 @@ export class OutboxDispatcher {
             last_error_code = NULL
         FROM candidates
         WHERE event.id = candidates.id
-        RETURNING event.id, event.payload, event.retry_count
+        RETURNING event.id, event.event_type, event.payload, event.retry_count
       `);
       await client.query('COMMIT');
       return result.rows;
@@ -97,11 +104,17 @@ export class OutboxDispatcher {
 
   private async publish(event: ClaimedOutboxEvent): Promise<void> {
     try {
-      const payload = ingestionJobSchema.parse(event.payload);
-      await this.queue.add('normalize-raw-event', payload, {
+      const isIngestion = event.event_type === 'raw_event.received.v1';
+      const payload = isIngestion
+        ? ingestionJobSchema.parse(event.payload)
+        : detectionJobSchema.parse(event.payload);
+      const queue = isIngestion
+        ? this.ingestionQueue
+        : (this.detectionQueue ?? (this.ingestionQueue as unknown as Queue<DetectionJob>));
+      await queue.add(isIngestion ? 'normalize-raw-event' : 'detect-normalized-batch', payload, {
         attempts: 5,
         backoff: { delay: 1_000, type: 'exponential' },
-        jobId: payload.rawEventId,
+        jobId: `${isIngestion ? 'ingestion' : 'detection'}-${payload.rawEventId}`,
         removeOnComplete: { age: 3_600, count: 10_000 },
         removeOnFail: { age: 86_400, count: 10_000 },
       });

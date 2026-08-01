@@ -17,6 +17,10 @@ export const PERMISSION_KEYS = [
   'api-key.read',
   'api-key.manage',
   'event.read',
+  'detection-rule.read',
+  'detection-rule.manage',
+  'alert.read',
+  'alert.triage',
 ] as const;
 
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
@@ -42,6 +46,10 @@ export const SYSTEM_ROLE_PERMISSIONS: Readonly<Record<string, readonly Permissio
     'api-key.read',
     'api-key.manage',
     'event.read',
+    'detection-rule.read',
+    'detection-rule.manage',
+    'alert.read',
+    'alert.triage',
   ],
   analyst: [
     'organization.read',
@@ -54,6 +62,10 @@ export const SYSTEM_ROLE_PERMISSIONS: Readonly<Record<string, readonly Permissio
     'asset.manage',
     'connector.read',
     'event.read',
+    'detection-rule.read',
+    'detection-rule.manage',
+    'alert.read',
+    'alert.triage',
   ],
   viewer: [
     'organization.read',
@@ -65,6 +77,8 @@ export const SYSTEM_ROLE_PERMISSIONS: Readonly<Record<string, readonly Permissio
     'asset.read',
     'connector.read',
     'event.read',
+    'detection-rule.read',
+    'alert.read',
   ],
 };
 

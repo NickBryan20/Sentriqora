@@ -3,11 +3,11 @@ import { describe, expect, it } from 'vitest';
 
 import Home from '../app/page';
 
-describe('bootstrap page', () => {
+describe('platform home page', () => {
   it('identifies the platform and the active phase', () => {
     render(<Home />);
 
     expect(screen.getByRole('heading', { name: /AegisFlow/i })).toBeTruthy();
-    expect(screen.getByText(/Fase 0/i)).toBeTruthy();
+    expect(screen.getByText(/Fase 4/i)).toBeTruthy();
   });
 });

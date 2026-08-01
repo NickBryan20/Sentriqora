@@ -136,12 +136,31 @@ enum EventSeverity {
   @@map("event_severity")
 }
 
+enum AlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  SUPPRESSED
+  CLOSED
+
+  @@map("alert_status")
+}
+
+enum CorrelationDimension {
+  ACTOR_USER
+  SOURCE_IP
+  ASSET
+  EVENT_TYPE
+  FINGERPRINT
+
+  @@map("correlation_dimension")
+}
+
 model Organization {
-  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name               String              @db.VarChar(120)
-  slug               String              @unique @db.VarChar(80)
-  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                 String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name               String                 @db.VarChar(120)
+  slug               String                 @unique @db.VarChar(80)
+  createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
   memberships        Membership[]
   roles              Role[]
   invitations        Invitation[]
@@ -156,6 +175,13 @@ model Organization {
   idempotencyRecords IdempotencyRecord[]
   rawEvents          RawEvent[]
   normalizedEvents   NormalizedEvent[]
+  detectionRules     DetectionRule[]
+  detectionVersions  DetectionRuleVersion[]
+  ruleExecutions     RuleExecution[]
+  anomalyScores      AnomalyScore[]
+  alerts             Alert[]
+  alertEvents        AlertEvent[]
+  correlationEdges   AlertCorrelationEdge[]
   eventRecords       EventRecord[]
   outboxEvents       OutboxEvent[]
 
@@ -182,6 +208,8 @@ model User {
   apiKeysCreated        ApiKey[]            @relation("ApiKeyCreator")
   idempotencyRecords    IdempotencyRecord[]
   eventRecords          EventRecord[]       @relation("EventRecordActor")
+  detectionRulesCreated DetectionRule[]     @relation("DetectionRuleCreator")
+  detectionRulesUpdated DetectionRule[]     @relation("DetectionRuleUpdater")
 
   @@index([status], map: "users_status_idx")
   @@map("users")
@@ -245,6 +273,7 @@ model Membership {
   user            User             @relation(fields: [userId], references: [id], onDelete: Restrict)
   membershipRoles MembershipRole[]
   ownedAssets     Asset[]
+  assignedAlerts  Alert[]
 
   @@unique([organizationId, userId], map: "memberships_org_user_key")
   @@unique([id, organizationId], map: "memberships_id_org_key")
@@ -411,6 +440,7 @@ model Asset {
   sourceDependencies AssetDependency[] @relation("AssetDependencySource")
   targetDependencies AssetDependency[] @relation("AssetDependencyTarget")
   normalizedEvents   NormalizedEvent[]
+  alerts             Alert[]
 
   @@unique([organizationId, key], map: "assets_org_key_key")
   @@unique([id, organizationId], map: "assets_id_org_key")
@@ -499,31 +529,34 @@ model RawEvent {
 }
 
 model NormalizedEvent {
-  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizationId String        @map("organization_id") @db.Uuid
-  rawEventId     String        @map("raw_event_id") @db.Uuid
-  connectorId    String        @map("connector_id") @db.Uuid
-  assetId        String?       @map("asset_id") @db.Uuid
-  recordIndex    Int           @map("record_index")
-  sourceEventId  String?       @map("source_event_id") @db.VarChar(128)
-  eventType      String        @map("event_type") @db.VarChar(120)
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String          @map("organization_id") @db.Uuid
+  rawEventId     String          @map("raw_event_id") @db.Uuid
+  connectorId    String          @map("connector_id") @db.Uuid
+  assetId        String?         @map("asset_id") @db.Uuid
+  recordIndex    Int             @map("record_index")
+  sourceEventId  String?         @map("source_event_id") @db.VarChar(128)
+  eventType      String          @map("event_type") @db.VarChar(120)
   severity       EventSeverity
-  message        String        @default("") @db.VarChar(2000)
-  actorUserHash  String?       @map("actor_user_hash") @db.Char(64)
-  sourceIpHash   String?       @map("source_ip_hash") @db.Char(64)
-  attributes     Json          @default("{}")
-  fingerprint    String        @db.Char(64)
-  schemaVersion  String        @default("1.0") @map("schema_version") @db.VarChar(20)
-  maskingVersion String        @default("1.0") @map("masking_version") @db.VarChar(20)
-  occurredAt     DateTime      @map("occurred_at") @db.Timestamptz(6)
-  receivedAt     DateTime      @map("received_at") @db.Timestamptz(6)
-  normalizedAt   DateTime      @default(now()) @map("normalized_at") @db.Timestamptz(6)
-  retentionUntil DateTime      @map("retention_until") @db.Timestamptz(6)
-  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  rawEvent       RawEvent      @relation(fields: [rawEventId, organizationId], references: [id, organizationId], onDelete: Restrict)
-  connector      Connector     @relation(fields: [connectorId, organizationId], references: [id, organizationId], onDelete: Restrict)
-  asset          Asset?        @relation(fields: [assetId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  message        String          @default("") @db.VarChar(2000)
+  actorUserHash  String?         @map("actor_user_hash") @db.Char(64)
+  sourceIpHash   String?         @map("source_ip_hash") @db.Char(64)
+  attributes     Json            @default("{}")
+  fingerprint    String          @db.Char(64)
+  schemaVersion  String          @default("1.0") @map("schema_version") @db.VarChar(20)
+  maskingVersion String          @default("1.0") @map("masking_version") @db.VarChar(20)
+  occurredAt     DateTime        @map("occurred_at") @db.Timestamptz(6)
+  receivedAt     DateTime        @map("received_at") @db.Timestamptz(6)
+  normalizedAt   DateTime        @default(now()) @map("normalized_at") @db.Timestamptz(6)
+  retentionUntil DateTime        @map("retention_until") @db.Timestamptz(6)
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  rawEvent       RawEvent        @relation(fields: [rawEventId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  connector      Connector       @relation(fields: [connectorId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  asset          Asset?          @relation(fields: [assetId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  ruleExecutions RuleExecution[]
+  anomalyScores  AnomalyScore[]
+  alertEvents    AlertEvent[]
 
   @@unique([rawEventId, recordIndex], map: "normalized_events_raw_record_key")
   @@unique([id, organizationId], map: "normalized_events_id_org_key")
@@ -533,6 +566,172 @@ model NormalizedEvent {
   @@index([organizationId, assetId, occurredAt], map: "normalized_events_org_asset_idx")
   @@index([retentionUntil], map: "normalized_events_retention_idx")
   @@map("normalized_events")
+}
+
+model DetectionRule {
+  id                         String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId             String                 @map("organization_id") @db.Uuid
+  key                        String                 @db.VarChar(80)
+  name                       String                 @db.VarChar(120)
+  description                String                 @default("") @db.VarChar(1000)
+  enabled                    Boolean                @default(false)
+  severity                   EventSeverity
+  threshold                  Int                    @default(1)
+  windowSeconds              Int                    @map("window_seconds")
+  deduplicationWindowSeconds Int                    @map("deduplication_window_seconds")
+  condition                  Json
+  correlationDimensions      CorrelationDimension[] @map("correlation_dimensions")
+  version                    Int                    @default(1)
+  createdByUserId            String                 @map("created_by_user_id") @db.Uuid
+  updatedByUserId            String                 @map("updated_by_user_id") @db.Uuid
+  createdAt                  DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                  DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  organization               Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdBy                  User                   @relation("DetectionRuleCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy                  User                   @relation("DetectionRuleUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  versions                   DetectionRuleVersion[]
+  executions                 RuleExecution[]
+  alerts                     Alert[]
+
+  @@unique([organizationId, key], map: "detection_rules_org_key_key")
+  @@unique([id, organizationId], map: "detection_rules_id_org_key")
+  @@index([organizationId, enabled, updatedAt], map: "detection_rules_org_enabled_idx")
+  @@map("detection_rules")
+}
+
+model DetectionRuleVersion {
+  id                         String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId             String                 @map("organization_id") @db.Uuid
+  ruleId                     String                 @map("rule_id") @db.Uuid
+  version                    Int
+  name                       String                 @db.VarChar(120)
+  description                String                 @db.VarChar(1000)
+  severity                   EventSeverity
+  threshold                  Int
+  windowSeconds              Int                    @map("window_seconds")
+  deduplicationWindowSeconds Int                    @map("deduplication_window_seconds")
+  condition                  Json
+  correlationDimensions      CorrelationDimension[] @map("correlation_dimensions")
+  createdAt                  DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  organization               Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  rule                       DetectionRule          @relation(fields: [ruleId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  executions                 RuleExecution[]
+
+  @@unique([organizationId, ruleId, version], map: "detection_rule_versions_org_rule_version_key")
+  @@unique([id, organizationId], map: "detection_rule_versions_id_org_key")
+  @@map("detection_rule_versions")
+}
+
+model RuleExecution {
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String               @map("organization_id") @db.Uuid
+  ruleId            String               @map("rule_id") @db.Uuid
+  ruleVersionId     String               @map("rule_version_id") @db.Uuid
+  normalizedEventId String               @map("normalized_event_id") @db.Uuid
+  matched           Boolean
+  observedCount     Int                  @map("observed_count")
+  riskScore         Decimal              @map("risk_score") @db.Decimal(6, 3)
+  durationMs        Int                  @map("duration_ms")
+  executedAt        DateTime             @default(now()) @map("executed_at") @db.Timestamptz(6)
+  organization      Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  rule              DetectionRule        @relation(fields: [ruleId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  ruleVersion       DetectionRuleVersion @relation(fields: [ruleVersionId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  normalizedEvent   NormalizedEvent      @relation(fields: [normalizedEventId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([organizationId, ruleVersionId, normalizedEventId], map: "rule_executions_org_version_event_key")
+  @@index([organizationId, ruleId, executedAt], map: "rule_executions_org_rule_time_idx")
+  @@map("rule_executions")
+}
+
+model AnomalyScore {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String          @map("organization_id") @db.Uuid
+  normalizedEventId String          @map("normalized_event_id") @db.Uuid
+  algorithm         String          @default("zscore-hourly-v1") @db.VarChar(40)
+  baselineMean      Decimal         @map("baseline_mean") @db.Decimal(14, 6)
+  baselineStdDev    Decimal         @map("baseline_stddev") @db.Decimal(14, 6)
+  movingAverage     Decimal         @map("moving_average") @db.Decimal(14, 6)
+  observedValue     Decimal         @map("observed_value") @db.Decimal(14, 6)
+  score             Decimal         @db.Decimal(8, 4)
+  isAnomalous       Boolean         @map("is_anomalous")
+  calculatedAt      DateTime        @default(now()) @map("calculated_at") @db.Timestamptz(6)
+  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  normalizedEvent   NormalizedEvent @relation(fields: [normalizedEventId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([organizationId, normalizedEventId, algorithm], map: "anomaly_scores_org_event_algorithm_key")
+  @@index([organizationId, isAnomalous, calculatedAt], map: "anomaly_scores_org_anomalous_idx")
+  @@map("anomaly_scores")
+}
+
+model Alert {
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId       String                 @map("organization_id") @db.Uuid
+  ruleId               String                 @map("rule_id") @db.Uuid
+  assetId              String?                @map("asset_id") @db.Uuid
+  assignedMembershipId String?                @map("assigned_membership_id") @db.Uuid
+  deduplicationKey     String                 @map("deduplication_key") @db.Char(64)
+  correlationKey       String                 @map("correlation_key") @db.VarChar(512)
+  title                String                 @db.VarChar(200)
+  description          String                 @default("") @db.VarChar(2000)
+  severity             EventSeverity
+  status               AlertStatus            @default(OPEN)
+  riskScore            Decimal                @map("risk_score") @db.Decimal(6, 3)
+  occurrenceCount      Int                    @default(1) @map("occurrence_count")
+  firstSeenAt          DateTime               @map("first_seen_at") @db.Timestamptz(6)
+  lastSeenAt           DateTime               @map("last_seen_at") @db.Timestamptz(6)
+  acknowledgedAt       DateTime?              @map("acknowledged_at") @db.Timestamptz(6)
+  suppressedUntil      DateTime?              @map("suppressed_until") @db.Timestamptz(6)
+  suppressionReason    String?                @map("suppression_reason") @db.VarChar(500)
+  version              Int                    @default(1)
+  createdAt            DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  organization         Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  rule                 DetectionRule          @relation(fields: [ruleId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  asset                Asset?                 @relation(fields: [assetId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  assignedMembership   Membership?            @relation(fields: [assignedMembershipId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  events               AlertEvent[]
+  outgoingCorrelations AlertCorrelationEdge[] @relation("CorrelationSource")
+  incomingCorrelations AlertCorrelationEdge[] @relation("CorrelationTarget")
+
+  @@unique([organizationId, deduplicationKey], map: "alerts_org_dedup_key")
+  @@unique([id, organizationId], map: "alerts_id_org_key")
+  @@index([organizationId, status, severity, lastSeenAt, id], map: "alerts_org_cursor_idx")
+  @@index([organizationId, assignedMembershipId, status], map: "alerts_org_assignee_idx")
+  @@map("alerts")
+}
+
+model AlertEvent {
+  organizationId    String          @map("organization_id") @db.Uuid
+  alertId           String          @map("alert_id") @db.Uuid
+  normalizedEventId String          @map("normalized_event_id") @db.Uuid
+  linkedAt          DateTime        @default(now()) @map("linked_at") @db.Timestamptz(6)
+  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  alert             Alert           @relation(fields: [alertId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  normalizedEvent   NormalizedEvent @relation(fields: [normalizedEventId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@id([organizationId, alertId, normalizedEventId])
+  @@index([organizationId, normalizedEventId], map: "alert_events_org_event_idx")
+  @@map("alert_events")
+}
+
+model AlertCorrelationEdge {
+  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String               @map("organization_id") @db.Uuid
+  sourceAlertId  String               @map("source_alert_id") @db.Uuid
+  targetAlertId  String               @map("target_alert_id") @db.Uuid
+  dimension      CorrelationDimension
+  valueHash      String               @map("value_hash") @db.Char(64)
+  weight         Int                  @default(1)
+  firstSeenAt    DateTime             @default(now()) @map("first_seen_at") @db.Timestamptz(6)
+  lastSeenAt     DateTime             @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  sourceAlert    Alert                @relation("CorrelationSource", fields: [sourceAlertId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  targetAlert    Alert                @relation("CorrelationTarget", fields: [targetAlertId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  @@unique([organizationId, sourceAlertId, targetAlertId, dimension, valueHash], map: "alert_correlations_edge_key")
+  @@index([organizationId, sourceAlertId, lastSeenAt], map: "alert_correlations_source_idx")
+  @@index([organizationId, targetAlertId, lastSeenAt], map: "alert_correlations_target_idx")
+  @@map("alert_correlation_edges")
 }
 
 model WebhookSecret {

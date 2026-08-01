@@ -37,14 +37,46 @@
       ],
       "title": "API memory",
       "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "id": 3,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum by (severity) (rate(aegisflow_alerts_created_total[5m]))",
+          "legendFormat": "{{severity}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Alertas creadas por severidad",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "id": 4,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(aegisflow_detection_batch_duration_seconds_bucket[5m])))",
+          "legendFormat": "p95 detección",
+          "refId": "A"
+        }
+      ],
+      "title": "Latencia de detección",
+      "type": "timeseries"
     }
   ],
   "schemaVersion": 41,
-  "tags": ["aegisflow", "phase-0"],
+  "tags": ["aegisflow", "phase-4", "detection"],
   "templating": { "list": [] },
   "time": { "from": "now-6h", "to": "now" },
   "timezone": "browser",
   "title": "AegisFlow Platform Overview",
   "uid": "aegisflow-platform-overview",
-  "version": 1
+  "version": 2
 }

@@ -56,6 +56,28 @@ export {
   parseEventCandidates,
   RAW_EVENT_STATUSES,
 } from './events';
+export {
+  ALERT_STATUSES,
+  CORRELATION_DIMENSIONS,
+  createDetectionRuleSchema,
+  DETECTION_OPERATORS,
+  detectionRuleConditionSchema,
+  setDetectionRuleEnabledSchema,
+  suppressAlertSchema,
+  triageAlertSchema,
+  updateDetectionRuleSchema,
+} from './detection';
+export type {
+  AlertStatusValue,
+  CorrelationDimensionValue,
+  CreateDetectionRuleInput,
+  DetectionOperatorValue,
+  DetectionRuleCondition,
+  SetDetectionRuleEnabledInput,
+  SuppressAlertInput,
+  TriageAlertInput,
+  UpdateDetectionRuleInput,
+} from './detection';
 export type {
   CanonicalEvent,
   EventFormatValue,

@@ -43,3 +43,13 @@ export type {
   EventCandidateForNormalization,
   NormalizedEventValue,
 } from './events/event-normalization-policy';
+export {
+  AnomalyScoringPolicy,
+  DetectionRuleFactory,
+  DeterministicDetectionRule,
+} from './detection/detection-policy';
+export type {
+  AnomalyResult,
+  DetectionEvent,
+  DetectionRuleDefinition,
+} from './detection/detection-policy';

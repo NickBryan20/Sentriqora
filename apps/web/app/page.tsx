@@ -1,10 +1,11 @@
 import { StatusBadge } from '@aegisflow/ui';
+import Link from 'next/link';
 
 const foundations = [
-  ['API versionada', '/api/v1 con health checks y OpenAPI'],
-  ['Datos', 'PostgreSQL + pgvector, Redis y MinIO'],
-  ['Observabilidad', 'Prometheus, Grafana y OpenTelemetry'],
-  ['Seguridad', 'Configuracion estricta y secretos por entorno'],
+  ['Ingesta', 'Eventos validados, enmascarados y deduplicados'],
+  ['Detección', 'Reglas versionadas, ventanas y z-score explicable'],
+  ['Correlación', 'Alertas agrupadas por señal y grafo de relaciones'],
+  ['Seguridad', 'RLS, permisos finos y auditoría append-only'],
 ] as const;
 
 export default function Home() {
@@ -21,9 +22,8 @@ export default function Home() {
               AEGISFLOW
             </span>
           </div>
-          <StatusBadge tone="healthy">Fase 0 · Bootstrap activo</StatusBadge>
+          <StatusBadge tone="healthy">Fase 4 · Detección activa</StatusBadge>
         </header>
-
         <div className="max-w-3xl py-20">
           <p className="mb-5 text-sm font-semibold uppercase tracking-[0.3em] text-cyan-300">
             Seguridad operacional con trazabilidad
@@ -32,16 +32,21 @@ export default function Home() {
             AegisFlow convierte señales dispersas en decisiones defendibles.
           </h1>
           <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-300">
-            La base técnica está preparada para incorporar identidad, ingesta, detección, incidentes
-            y recomendaciones asistidas con aprobación humana.
+            La plataforma recibe y normaliza eventos, ejecuta reglas determinísticas, calcula
+            anomalías y correlaciona alertas con aislamiento estricto por organización.
           </p>
+          <Link
+            className="mt-8 inline-flex rounded-xl bg-cyan-300 px-5 py-3 font-semibold text-slate-950 focus:outline-none focus:ring-2 focus:ring-white"
+            href="/detections"
+          >
+            Abrir centro de detección
+          </Link>
         </div>
-
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {foundations.map(([title, description]) => (
             <article
-              key={title}
               className="rounded-2xl border border-white/10 bg-white/[0.035] p-5"
+              key={title}
             >
               <h2 className="font-semibold text-white">{title}</h2>
               <p className="mt-2 text-sm leading-6 text-slate-400">{description}</p>
