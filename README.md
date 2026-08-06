@@ -1,4 +1,4 @@
-# AegisFlow
+# AegisFlow (DESCONTINUADO POR HARDWARE)
 
 AegisFlow es una plataforma web multi-organización para recolectar eventos tecnológicos,
 correlacionar señales, gestionar incidentes y asistir decisiones con evidencia. El proyecto se
