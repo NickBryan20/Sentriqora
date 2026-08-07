@@ -17,7 +17,7 @@
     "@aegisflow/ai": "workspace:*",
     "@aegisflow/contracts": "workspace:*",
     "@aegisflow/domain": "workspace:*",
-    "bullmq": "6.0.2",
+    "bullmq": "6.0.7",
     "ioredis": "6.0.0",
     "pino": "10.3.1",
     "pg": "8.22.0",
