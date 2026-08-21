@@ -20,7 +20,7 @@
     "@aegisflow/ai": "workspace:*",
     "@aegisflow/contracts": "workspace:*",
     "@aegisflow/domain": "workspace:*",
-    "@nestjs/common": "11.1.28",
+    "@nestjs/common": "11.2.1",
     "@nestjs/config": "4.0.4",
     "@nestjs/core": "11.1.28",
     "@nestjs/platform-express": "11.1.28",
